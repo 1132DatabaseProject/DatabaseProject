@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>英文寫作分析器</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <!-- Quill CSS -->
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+
+  <!-- Quill JS -->
+  <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>英文寫作分析器</h1>
+
+    <form id="analyze-form" enctype="multipart/form-data">
+      <textarea name="text_content" id="text_content" placeholder="請輸入或貼上英文文章內容..." rows="15"></textarea>
+      <div class="upload-section">
+        <label for="file">或上傳TXT檔案：</label>
+        <input type="file" id="file" name="file" accept=".txt">
+      </div>
+      <button type="submit">開始分析</button>
+    </form>
+
+    <div id="status" class="status"></div>
+
+    <div id="result" class="result hidden"></div>
+
+  <h2>分析結果編輯</h2>
+    <div id="editor-container" class="hidden"></div>
+
+    <!-- ⭐新增：下載PDF的按鈕 (一開始是隱藏的) -->
+    <div id="download-section" class="hidden">
+      <button id="download-pdf-button" class="download-btn">下載PDF結果</button>
+    </div>  
+    <!-- 範例文章區塊 -->
+    <div id="sample-article" class="sample-article hidden">
+        <div id="sample-content" class="sample-content"></div>
+
+
+
+  </div>
+
+  <script>
+    var quill = new Quill('#editor-container', {
+      theme: 'snow',  // 主題樣式
+      modules: {
+        toolbar: [
+          [{ 'header': '1'}, {'header': '2'}, { 'font': [] }],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          [{ 'align': [] }],
+          ['bold', 'italic', 'underline'],
+          ['link', 'blockquote'],
+          ['image', 'video']
+        ]
+      }
+    });
+
+
+    const form = document.getElementById('analyze-form');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    const sampleCard = document.getElementById('sample-article');
+    const sampleContent = document.getElementById('sample-content');
+    const downloadSection = document.getElementById('download-section');
+    const downloadButton = document.getElementById('download-pdf-button');
+    const editor = document.getElementById('editor-container');
+
+    // 📥 當使用者選擇 TXT 檔案時，讀取並填入 textarea
+    document.getElementById('file').addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+
+      if (file.name.endsWith('.txt')) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          document.getElementById('text_content').value = e.target.result;
+        };
+        reader.readAsText(file, 'utf-8');
+      } else {
+        alert('請上傳 .txt 格式的純文字檔案');
+        this.value = ''; // 清空檔案欄位
+      }
+    });
+
+    // 表單提交處理
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      status.textContent = '資料分析中，請稍候...';
+      result.classList.add('hidden');
+      sampleCard.classList.add('hidden');
+      downloadSection.classList.add('hidden');  // ⭐送出前先隱藏下載按鈕
+      editor.classList.add('hidden');
+
+      const formData = new FormData(form);
+
+      try {
+        const response = await fetch('/', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          status.textContent = '分析完成！';
+
+          // 塞入 Quill 編輯器中
+          quill.root.innerHTML = data.result;
+          editor.classList.remove('hidden');
+          result.innerHTML = data.result;
+          result.classList.remove('hidden');
+
+          if (data.sample_article && data.sample_article.trim() !== '') {
+            sampleContent.innerHTML = data.sample_article;
+            sampleCard.classList.remove('hidden');
+          }
+          
+          // 這裡新增一個下載按鈕
+          if (data.pdf_url) {
+            const downloadButton = document.createElement("a");
+              downloadButton.href = data.pdf_url;
+              downloadButton.download = "analysis_result.pdf"; // 下載檔名
+              downloadButton.textContent = "下載PDF報告";
+              downloadButton.className = "download-button"; // 你可以自己定義CSS樣式
+              document.getElementById("result").appendChild(document.createElement("br"));
+              document.getElementById("result").appendChild(downloadButton);
+          }
+          
+          // 顯示下載 PDF 按鈕
+          downloadSection.classList.remove('hidden');
+        } else {
+          status.textContent = '分析失敗，請稍後再試。';
+        }
+      } catch (error) {
+        console.error('發生錯誤:', error);
+        status.textContent = '連線錯誤，請稍後再試。';
+      }
+    });
+
+
+        // 下載 PDF 按鈕處理
+        document.getElementById('download-pdf-button').addEventListener('click', function () {
+      const content = quill.root.innerHTML;  // 取得 Quill 編輯器中的內容
+      fetch('/generate_pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content })
+      })
+      .then(response => response.blob())
+      .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'analysis_result.pdf';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch(error => {
+        console.error('下載 PDF 發生錯誤:', error);
+      });
+    });
+
+
+
+
+  </script>
+</body>
+</html>
