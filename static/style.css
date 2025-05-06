@@ -104,3 +104,34 @@ body {
 .download-btn:hover {
   background-color: #2980b9;
 }
+
+.tabs button {
+  padding: 10px 20px;
+  background-color: #539ac9;
+  border: none;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  background-color: #144565;
+}
+
+.tab-content {
+  border: 1px solid #ccc;
+  padding: 20px;
+  border-top: none;
+}
+
+.tabs {
+  display: flex;
+  gap: 10px; /* 兩個按鈕之間的間距，可調整 */
+  margin-top: 20px;
+}
+
+.tabs button {
+  flex: 1;  /* 讓兩個按鈕寬度平均分配（可選） */
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+}

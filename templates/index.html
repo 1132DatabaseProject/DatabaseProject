@@ -25,15 +25,25 @@
 
     <div id="status" class="status"></div>
 
-    <div id="result" class="result hidden"></div>
+    <div class="tabs hidden">
+      <button onclick="showTab('analysis')" id="tab1" class="hidden">分析結果</button>
+      <button onclick="showTab('editable')" id="tab2" class="hidden">可編輯版本</button>
+    </div>
+    
+    <div id="analysis" class="tab-content hidden">
+      <div id="result" class="result hidden"></div>
+    </div>
+    
+    <div id="editable" class="tab-content hidden" style="display: none;">
+      <h2>分析結果編輯</h2>
+      <div id="editor-container" class="hidden"></div>
+          <!-- ⭐新增：下載PDF的按鈕 (一開始是隱藏的) -->
+      <div id="download-section" class="hidden">
+        <button id="download-pdf-button" class="download-btn">下載PDF結果</button>
+      </div>  
+    </div>
 
-  <h2>分析結果編輯</h2>
-    <div id="editor-container" class="hidden"></div>
 
-    <!-- ⭐新增：下載PDF的按鈕 (一開始是隱藏的) -->
-    <div id="download-section" class="hidden">
-      <button id="download-pdf-button" class="download-btn">下載PDF結果</button>
-    </div>  
     <!-- 範例文章區塊 -->
     <div id="sample-article" class="sample-article hidden">
         <div id="sample-content" class="sample-content"></div>
@@ -66,6 +76,10 @@
     const downloadSection = document.getElementById('download-section');
     const downloadButton = document.getElementById('download-pdf-button');
     const editor = document.getElementById('editor-container');
+    const tab1 = document.getElementById('tab1');
+    const tab2 = document.getElementById('tab2');
+    const editable = document.getElementById('editable');
+    const analysis = document.getElementById('analysis');
 
     // 📥 當使用者選擇 TXT 檔案時，讀取並填入 textarea
     document.getElementById('file').addEventListener('change', function () {
@@ -92,6 +106,10 @@
       sampleCard.classList.add('hidden');
       downloadSection.classList.add('hidden');  // ⭐送出前先隱藏下載按鈕
       editor.classList.add('hidden');
+      tab1.classList.add('hidden');
+      tab2.classList.add('hidden');
+      editable.classList.add('hidden');
+      analysis.classList.add('hidden');
 
       const formData = new FormData(form);
 
@@ -104,6 +122,10 @@
         if (response.ok) {
           const data = await response.json();
           status.textContent = '分析完成！';
+          tab1.classList.remove('hidden');
+          tab2.classList.remove('hidden');
+          editable.classList.remove('hidden');
+          analysis.classList.remove('hidden');
 
           // 塞入 Quill 編輯器中
           quill.root.innerHTML = data.result;
@@ -165,6 +187,19 @@
 
 
 
+    function showTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      document.getElementById(tabId).style.display = 'block';
+
+      // 額外控制分析與編輯區塊的顯示（可選）
+      if (tabId === 'analysis') {
+        result.classList.remove('hidden');
+        editor.classList.add('hidden');
+      } else {
+        result.classList.add('hidden');
+        editor.classList.remove('hidden');
+      }
+    }
 
   </script>
 </body>
