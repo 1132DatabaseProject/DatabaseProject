@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>使用者登入</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>登入英文寫作分析器</h1>
+<form method="POST">
+  <input type="text" name="username" placeholder="帳號" required>
+  <input type="password" name="password" placeholder="密碼" required>
+  <button type="submit">登入</button>
+</form>
+<a href="{{ url_for('register') }}">尚未註冊？點此註冊</a>
+<form method="POST" action="{{ url_for('skip_login') }}">
+  <button type="submit">跳過登入</button>
+</form>
+
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <label for="username">使用者名稱：</label>
+      <input type="text" name="username" id="username" required>
+      
+      <label for="password">密碼：</label>
+      <input type="password" name="password" id="password" required>
+
+      <button type="submit">登入</button>
+    </form>
+  </div>
+</body>
+</html>
