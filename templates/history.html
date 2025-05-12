@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>歷史紀錄</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style> /* 增加一些基本樣式讓長文本換行 */
+    ul { list-style-type: none; padding: 0; }
+    li { border: 2px solid #ddd; margin-bottom: 10px; padding: 15px; border-radius: 5px; background-color: #f9f9f9;}
+    pre { white-space: pre-wrap; word-wrap: break-word; } /* 允許長文本換行 */
+    strong { color: #333; }
+  </style>
+</head>
+<body>
+  <div class="container"> <!-- 建議用一個容器包裹 -->
+    <h1>歷史紀錄</h1>
+    <p><a href="{{ url_for('index') }}">返回主頁</a></p> <!-- 返回主頁連結 -->
+
+    {% if user_email %} <!-- 確保用戶已登入才顯示內容 -->
+        <p>使用者: {{ user_email }}</p>
+        {% if history_data %}
+            <ul>
+                {% for record in history_data %}
+                    <li>
+                        <p><strong>分析時間：</strong>{{ record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else '未知' }}</p>
+                        <p><strong>原始文章：</strong><pre>{{ record.original_text }}</pre></p> <!-- 使用 pre 標籤保留格式 -->
+                        <p><strong>分析結果 (Gemini)：</strong><pre>{{ record.analysis_result }}</pre></p> <!-- 使用 pre 標籤保留格式 -->
+                        <!-- 如果你想顯示完整的HTML報告，你需要一個不同的欄位或在後端重新生成它 -->
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>目前沒有歷史紀錄。</p>
+        {% endif %}
+    {% else %}
+        <p>請先<a href="{{ url_for('login') }}">登入</a>以查看歷史紀錄。</p>
+    {% endif %}
+  </div>
+</body>
+</html>
