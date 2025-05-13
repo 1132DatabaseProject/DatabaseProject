@@ -34,7 +34,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # wkhtmltopdf路徑
-WKHTMLTOPDF_PATH = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+WKHTMLTOPDF_PATH = r"D:\Programmed Files\Python\TEST\wkhtmltox\bin\wkhtmltopdf.exe"
 pdfkit_config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
 
 # HTML模板
@@ -175,90 +175,144 @@ def generate_html_report(analysis_text, sample_article_text):
 
 # 主頁路由
 @app.route("/", methods=["GET", "POST"])
-
 def index():
-    #global generated_html_content
     user_logged_in = 'user_email' in session
     user_email = session.get('user_email')
 
     if request.method == "POST":
-        if not user_logged_in: # <--- 檢查 Flask session
-            # 如果前端期望JSON回應來處理未登入狀態
-            return jsonify({"error": "請先登入", "login_required": True}), 401 # 401 Unauthorized
+        # --- POST Request Logic ---
+        if not user_logged_in:
+            app.logger.warning("POST attempt to / by non-logged-in user.")
+            return jsonify({"error": "請先登入", "login_required": True}), 401
 
-        user_email = session['user_email'] # <--- 從 Flask session 獲取
+        # user_email is already set from above if user_logged_in is True
+        app.logger.info(f"POST request to / by user: {user_email}")
+        app.logger.debug(f"Flask request.form: {request.form}")
+        app.logger.debug(f"Flask request.files: {request.files}")
 
         input_text = request.form.get("text_content", "")
         uploaded_file = request.files.get("file")
 
-        if uploaded_file and uploaded_file.filename.endswith(".txt"):
-            filename = secure_filename(uploaded_file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            uploaded_file.save(filepath)
-            with open(filepath, "r", encoding="utf-8") as f:
-                input_text = f.read()
+        app.logger.debug(f"Received input_text: '{input_text}'")
+        if uploaded_file and uploaded_file.filename: # Check filename here too
+            app.logger.debug(f"Received uploaded_file: '{uploaded_file.filename}'")
+        else:
+            app.logger.debug("No valid uploaded file received.")
+            uploaded_file = None # Ensure it's None if not valid
 
+        is_input_empty = not input_text.strip()
+        is_file_empty = not (uploaded_file and uploaded_file.filename)
+
+        app.logger.debug(f"Is input_text empty? {is_input_empty}")
+        app.logger.debug(f"Is uploaded_file empty? {is_file_empty}")
+
+        if is_input_empty and is_file_empty:
+            app.logger.info("Both text and file are empty. Returning JSON error.")
+            return jsonify({"result": "請輸入文章內容或上傳檔案。"})
+
+        # File processing should happen *after* checking if input_text itself is sufficient
+        if uploaded_file: # No need to check filename.endswith(".txt") here if we already did is_file_empty
+            filename = secure_filename(uploaded_file.filename)
+            if filename.endswith(".txt"): # Check extension here
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                try:
+                    uploaded_file.save(filepath)
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        input_text = f.read() # Overwrites input_text if file is provided
+                    app.logger.info(f"Read content from uploaded file: {filename}")
+                except Exception as e:
+                    app.logger.error(f"Error saving or reading uploaded file {filename}: {e}")
+                    return jsonify({"error": f"處理上傳檔案時發生錯誤: {e}"}), 500
+            else:
+                app.logger.warning(f"Uploaded file {filename} is not a .txt file.")
+                # Decide how to handle non-txt files if input_text was also empty.
+                # For now, if it's not a .txt and input_text was empty, it would have already returned above.
+                # If input_text had content, this non-txt file is ignored.
+
+        # Final check if input_text (possibly from file) is now empty
         if not input_text.strip():
+            app.logger.info("After potential file read, input_text is still empty.")
             return jsonify({"result": "請輸入文章內容或上傳檔案。"})
 
         try:
-            # 將 generated_html_content 的處理移到 process_text 內部或返回值中
+            app.logger.info(f"Processing text for user {user_email}. Text length: {len(input_text)}")
             analysis_result_data = asyncio.run(process_text(input_text, user_email))
-
-            # 為了讓前端可以下載PDF，我們仍然需要一個可訪問的PDF路徑
-            # generated_html_content = analysis_result_data['html_content'] # 如果需要全域訪問，考慮 session
-            session['last_analysis_html'] = analysis_result_data['html_content'] # 儲存到 session
-            session['last_analysis_pdf_path'] = analysis_result_data['pdf_path'] # 儲存到 session
-
+            session['last_analysis_html'] = analysis_result_data['html_content']
+            session['last_analysis_pdf_path'] = analysis_result_data['pdf_path']
             return jsonify({
-                "result": analysis_result_data['html_content'], # 直接顯示的HTML
-                'pdf_url': url_for('download_specific_pdf', filename=os.path.basename(analysis_result_data['pdf_path'])) # 動態生成下載連結
+                "result": analysis_result_data['html_content'],
+                'pdf_url': url_for('download_specific_pdf', filename=os.path.basename(analysis_result_data['pdf_path']))
             })
         except Exception as e:
-            print(f"Error during processing text: {e}")
+            app.logger.error(f"Error during processing text for user {user_email}: {e}", exc_info=True)
             return jsonify({"error": f"分析處理過程中發生錯誤: {e}"}), 500
 
-    # GET 請求時，檢查用戶是否登入，以在模板中顯示不同內容 (例如，顯示/隱藏登入按鈕)
-    user_logged_in = 'user_email' in session
-    user_email = session.get('user_email')
-    return render_template("index.html", user_logged_in=user_logged_in, user_email=user_email)
+    else: # --- GET Request Logic ---
+        history_data_for_template = []
+        if user_logged_in:
+            app.logger.info(f"GET request to / by user: {user_email}. Fetching history.")
+            try:
+                query_execution_result = supabase.from_('analysis_history').select('*').eq('user_email', user_email).order('created_at', desc=True).execute()
+                if query_execution_result.data:
+                    raw_history_data = query_execution_result.data
+                    for record in raw_history_data:
+                        if record.get('created_at') and isinstance(record['created_at'], str):
+                            try:
+                                record['created_at'] = parser.parse(record['created_at'])
+                            except (parser.ParserError, ValueError):
+                                app.logger.warning(f"Could not parse created_at string: {record['created_at']}")
+                        elif not record.get('created_at'):
+                            record['created_at'] = None
+                        history_data_for_template.append(record)
+                else:
+                    if hasattr(query_execution_result, 'error') and query_execution_result.error:
+                        app.logger.error(f"Error fetching history for {user_email}: {query_execution_result.error}")
 
+            except Exception as e:
+                app.logger.error(f"Exception fetching history for {user_email}: {e}", exc_info=True)
+        
+        return render_template("index.html",
+                               user_logged_in=user_logged_in,
+                               user_email=user_email,
+                               history_data=history_data_for_template)
 
+# Remove or modify the /history route
+# Option 1: Remove it entirely if the index page always shows history.
+# Option 2: Keep it as a way to explicitly "refresh" or if you want a dedicated history URL,
+#           but ensure it also passes the same `history_data` to index.html.
+# For this request, let's assume we might remove it or it becomes less critical.
+# If you keep it:
+@app.route("/history") # This route might now be redundant
+def history_page_explicit(): # Renamed to avoid conflict if you merge
+    if 'user_email' not in session:
+        return redirect(url_for('login'))
 
-#@app.route('/login',methods=["GET", "POST"])
-#def login():
-#    if request.method == 'POST':
-#        email = request.form.get('email')
-#        password = request.form.get('password')
-#        error = None # 初始化錯誤訊息
-#
-#        try:
-#            # 首先嘗試登入
-#            auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': password})
-#            if auth_response.user: # Supabase-py v1.x
-#                session['user_id'] = str(auth_response.user.id) # 儲存 user_id 更佳
-#                session['user_email'] = auth_response.user.email
-#                print(f"User {auth_response.user.email} logged in. Flask session set.")
-#                return redirect('/')
-#        except Exception as e:
-#            # 如果登入失敗，嘗試註冊 (注意：這裡的錯誤處理比較簡化，實際應用可能需要更細緻的判斷)
-#            # Supabase API 通常會對已存在的用戶註冊返回特定錯誤，可以捕捉並提示用戶登入
-#            print(f"Sign-in attempt failed for {email}: {e}")
-#            try:
-#                auth_response = supabase.auth.sign_up({'email': email, 'password': password})
-#                if auth_response.user: # Supabase-py v1.x
-#                    session['user_id'] = str(auth_response.user.id)
-#                    session['user_email'] = auth_response.user.email
-#                    # 注意：新註冊用戶可能需要郵件驗證，這裡假設自動確認或後續處理
-#                    print(f"User {auth_response.user.email} signed up. Flask session set.")
-#                    return redirect('/')
-#
-#            except Exception as e_signup:
-#                error = f"登入或註冊失敗: {e_signup}" # 提供一個統一的錯誤信息
-#                print(f"Sign-up attempt failed for {email}: {e_signup}")
-#        return render_template('login.html', error=error)
-#    
-#    return render_template('login.html')
+    user_email = session['user_email']
+    processed_history_data = []
+    # ... (same history fetching logic as in index GET) ...
+    try:
+        query_response = supabase.from_('analysis_history').select('*').eq('user_email', user_email).order('created_at', desc=True).execute()
+        raw_history_data = []
+        if hasattr(query_response, 'data') and query_response.data is not None:
+            raw_history_data = query_response.data
+        # ... (rest of Supabase version handling and date parsing) ...
+        for record in raw_history_data:
+            if record.get('created_at') and isinstance(record['created_at'], str):
+                try:
+                    record['created_at'] = parser.parse(record['created_at'])
+                except (parser.ParserError, ValueError):
+                    print(f"Warning: Could not parse created_at string: {record['created_at']}")
+            elif not record.get('created_at'):
+                record['created_at'] = None
+            processed_history_data.append(record)
+    except Exception as e:
+        print(f"查詢歷史紀錄時發生異常: {e}")
+    
+    # Render index.html, which will now always display history if available
+    return render_template("index.html", 
+                           history_data=processed_history_data, 
+                           user_email=user_email, 
+                           user_logged_in=True)
 
 @app.route('/login', methods=["GET", "POST"])
 def login():
@@ -319,51 +373,6 @@ def logout():
     print("User logged out. Flask session cleared.")
     return redirect(url_for('login')) # 或跳轉到主頁
 
-# 分析並生成報告
-#async def process_text(text_content, user_email):
-#    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-#    if not gemini_api_key:
-#        raise ValueError("請設定環境變數 GEMINI_API_KEY")
-#
-#    genai.configure(api_key=gemini_api_key)
-#
-#    model = genai.GenerativeModel(model_name="gemini-1.5-flash-latest")
-#
-#    print("正在分析文章內容...")
-#    analysis_text = await analyze_text(text_content, model)
-#
-#    print("正在生成範例文章...")
-#    sample_article_text = await generate_sample_article(text_content, model)
-#    
-#
-#    if not analysis_text or not sample_article_text:
-#        print("分析失敗，無法產生回應。")
-#        return
-#
-#    html_content = generate_html_report(analysis_text, sample_article_text)
-#    
-#     # 儲存到 Supabase
-#    try:
-#        data = supabase.from_('analysis_history').insert([
-#            {'user_email': user_email, 'original_text': text_content, 'analysis_result': analysis_text}
-#        ]).execute()
-#        print("資料已儲存到 Supabase")
-#    except Exception as e:
-#        print(f"儲存資料到 Supabase 失敗: {e}")
-#
-#    # 儲存HTML
-#    html_output_path = os.path.join("static", "downloads", "analysis_result.html")
-#    os.makedirs(os.path.dirname(html_output_path), exist_ok=True)
-#    with open(html_output_path, "w", encoding="utf-8") as f:
-#        f.write(html_content)
-#    print(f"已將分析結果儲存為HTML: {html_output_path}")
-#
-#    # 轉成PDF
-#    pdf_output_path = os.path.join("static", "downloads", "analysis_result.pdf")
-#    pdfkit.from_file(html_output_path, pdf_output_path, configuration=pdfkit_config)
-#    print(f"已將分析結果轉換成PDF: {pdf_output_path}")
-#
-#    return html_content
 
 async def process_text(text_content, user_email):
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
@@ -403,27 +412,24 @@ async def process_text(text_content, user_email):
 
     # 儲存到 Supabase (儲存原始分析文字，不含範例文章)
     try:
-        # 這裡的 analysis_result 應該是 Gemini 的純文字分析結果，而不是完整 HTML
-        # 如果你的需求是儲存 Gemini 的原始分析文字，那麼應該是 analysis_text_from_gemini
-        # 如果你的需求是儲存整個生成的報告HTML，那麼欄位名可能需要調整，或就用 analysis_result 儲存 html_content_for_display_and_pdf
-        # 目前按照你的表結構，analysis_result 應該是 Gemini 的分析結果
         insert_data = {
             'user_email': user_email,
             'original_text': text_content,
-            'analysis_result': analysis_text_from_gemini # 儲存 Gemini 的核心分析
+            'analysis_result': analysis_text_from_gemini, # Gemini's core analysis
+            'report_html': html_content_for_display_and_pdf, # <<<< ADD THIS
+            # 'sample_article': sample_article_text, # If you also want to store this
         }
-        # 如果你也想把範例文章存到資料庫，需要新增欄位
-        # 'sample_article': sample_article_text (可選)
-
-        data, error = supabase.from_('analysis_history').insert(insert_data).execute()
-        # supabase-py v1.x 返回 (data, error) tuple，需要檢查 error
-        # supabase-py v0.x 可能是 response.data / response.error
-        if hasattr(data, 'error') and data.error: # 檢查 execute() 的返回是否有 error 屬性 (舊版 SDK)
-             print(f"儲存資料到 Supabase 失敗: {data.error}")
-        elif isinstance(data, tuple) and len(data) > 1 and data[1]: # 新版 SDK (data, count=None) 或 (data, error=None)
-            print(f"儲存資料到 Supabase 失敗: {data[1]}") # data[1] is error
-        else:
-            print("資料已儲存到 Supabase")
+        # If you add 'sample_article', make sure the column exists in Supabase
+        
+        # Supabase v2+ style
+        response = supabase.from_('analysis_history').insert(insert_data).execute()
+        if response.data:
+             print("資料已儲存到 Supabase (including report_html)")
+        else: # Check for error in v2, though error might raise exception
+             if hasattr(response, 'error') and response.error: # More explicit error check for v2
+                print(f"儲存資料到 Supabase 失敗: {response.error}")
+             else: # Fallback for older client or unexpected response
+                print(f"儲存資料到 Supabase 可能失敗或無返回資料。Response: {response}")
 
     except Exception as e:
         print(f"儲存資料到 Supabase 時發生異常: {e}")
@@ -467,14 +473,6 @@ async def process_text(text_content, user_email):
         "pdf_path": pdf_output_path # 返回PDF的實際路徑
     }
 
-#@app.route("/download_pdf")
-#def download_pdf():
-#    pdf_path = os.path.join("static", "downloads", "analysis_result.pdf")
-#    if os.path.exists(pdf_path):
-#        return send_file(pdf_path, as_attachment=True)
-#    else:
-#        return "PDF檔案不存在，請先生成報告。", 404
-
 # 新的下載路由，接受檔名作為參數
 @app.route("/download_pdf/<filename>")
 def download_specific_pdf(filename):
@@ -504,45 +502,6 @@ def upload_txt():
         content = uploaded_file.read().decode("utf-8")
         return jsonify({"content": content})
     return jsonify({"error": "請上傳.txt格式檔案"}), 400
-
-#@app.route("/generate_pdf", methods=["POST"])
-#def generate_pdf():
-#    data = request.get_json()
-#    html_content = data.get("content")
-#
-#    if not html_content:
-#        return jsonify({"error": "缺少 HTML 內容"}), 400
-#
- #   # 加入中文字型與 UTF-8 編碼設定
-#    html_content = f"""
-#    <html>
-#    <head>
-#        <meta charset="utf-8">
-#        <style>
-#            body {{
-#                font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", "SimHei", sans-serif;
-#            }}
-#        </style>
-#    </head>
-#    <body>
-#    {html_content}
-#    </body>
-#    </html>
-#    """
-#
-#    options = {
-#        'encoding': "UTF-8",
-#        'enable-local-file-access': None
-#    }
-#
-#    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-#        pdf_path = tmp_pdf.name
-#        try:
-#            pdfkit.from_string(html_content, pdf_path, options=options, configuration=pdfkit_config)
-#        except Exception as e:
-#            return jsonify({"error": f"PDF 生成失敗: {e}"}), 500
-#
-#    return send_file(pdf_path, as_attachment=True, download_name="analysis_editresult.pdf")
 
 @app.route("/generate_pdf", methods=["POST"])
 def generate_pdf():
@@ -623,41 +582,52 @@ def generate_pdf():
     #         except Exception as e_remove:
     #             print(f"Error removing temp pdf {pdf_path}: {e_remove}")
 
-@app.route("/history")
-def history():
+@app.route("/get_history_item/<string:item_id>", methods=["GET"])
+def get_history_item(item_id):
     if 'user_email' not in session:
-        return redirect(url_for('login'))
+        app.logger.warning(f"Unauthorized attempt to access history item {item_id}") # Use app.logger
+        return jsonify({"error": "Not authenticated"}), 401
 
     user_email = session['user_email']
-    processed_history_data = [] # 用一個新的列表來存放處理後的數據
+    app.logger.info(f"User {user_email} requesting history item {item_id}")
+
     try:
-        query_response = supabase.from_('analysis_history').select('*').eq('user_email', user_email).order('created_at', desc=True).execute()
+        # Ensure the item belongs to the logged-in user for security
+        # Using single() is good. It will error if not exactly one row.
+        response = supabase.from_('analysis_history').select('id, original_text, report_html').eq('id', item_id).eq('user_email', user_email).single().execute()
         
-        raw_history_data = []
-        if hasattr(query_response, 'data'):
-            raw_history_data = query_response.data
-        elif isinstance(query_response, list):
-            raw_history_data = query_response
+        # For supabase-py v2+, response.data should be the way
+        record_data = response.data 
+        app.logger.debug(f"Supabase response for item {item_id}: {response}") # Log the whole response for inspection
 
-        for record in raw_history_data:
-            if record.get('created_at') and isinstance(record['created_at'], str):
-                try:
-                    # dateutil.parser 可以很好地處理多種 ISO 8601 格式，包括帶時區的
-                    record['created_at'] = parser.parse(record['created_at'])
-                except ValueError:
-                    # 如果解析失敗，可以選擇給一個預設值或記錄錯誤
-                    print(f"Warning: Could not parse created_at string: {record['created_at']}")
-                    record['created_at'] = None # 或者保持原樣，讓模板的 else '未知' 生效
-            elif not record.get('created_at'): # 如果 created_at 本身就是 None 或空
-                record['created_at'] = None
-
-            processed_history_data.append(record)
-
+        if record_data:
+            app.logger.info(f"Found history item {item_id} for user {user_email}. Original text length: {len(record_data.get('original_text', ''))}, Report HTML length: {len(record_data.get('report_html', ''))}")
+            return jsonify({
+                "original_text": record_data.get("original_text"),
+                "analysis_result_html": record_data.get("report_html"), # This should now have the full HTML
+                # "pdf_url": "..." # If you decide to store and retrieve PDF path/URL
+            })
+        else:
+            # This else might not be reached if .single() errors out on no data,
+            # but good as a fallback.
+            app.logger.warning(f"History item {item_id} not found for user {user_email} or no data in response.")
+            return jsonify({"error": "Item not found or access denied"}), 404
+            
     except Exception as e:
-        print(f"查詢歷史紀錄時發生異常: {e}")
-        # processed_history_data 仍然是空的
+        # supabase-py can raise specific exceptions, e.g., from gotrue.errors or postgrest.exceptions
+        # Example: from postgrest.exceptions import APIError
+        # if isinstance(e, APIError) and e.code == "PGRST116": # "טים exact one row was returned" (when using .single())
+        #     app.logger.warning(f"History item {item_id} not found for user {user_email} (single() failed): {e}")
+        #     return jsonify({"error": "Item not found"}), 404
+        
+        app.logger.error(f"Error fetching history item {item_id} for user {user_email}: {e}", exc_info=True) # exc_info=True logs traceback
+        
+        # A more generic check for "no rows found" type errors from PostgREST if .single() was not used or error is different
+        if "PGRST116" in str(e) or "PGRST204" in str(e): # PGRST116 (single row not found), PGRST204 (no content, for non-single queries)
+             app.logger.warning(f"History item {item_id} likely not found due to PostgREST error: {e}")
+             return jsonify({"error": "Item not found"}), 404
+        return jsonify({"error": "Server error while fetching history item"}), 500
 
-    return render_template("history.html", history_data=processed_history_data, user_email=user_email, user_logged_in=True)
 # 啟動Flask
 if __name__ == "__main__":
     generated_html_content = None  # 初始化全域變數

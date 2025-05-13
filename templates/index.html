@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
   <meta charset="UTF-8">
   <title>英文寫作分析器</title>
@@ -8,59 +9,108 @@
   <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
   <!-- Supabase JS Client - 保持原樣，因為 checkAuth 和可能的其他前端交互仍需 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.4/dist/umd/supabase.min.js"></script>
-  
+  <style>
+    /* Add some basic styling for clickable history items */
+    #sidebar ul li {
+      cursor: pointer;
+      padding: 10px; /* Add more padding for better clickability */
+      border-radius: 4px;
+      transition: background-color 0.2s ease-in-out;
+    }
+    #sidebar ul li:hover {
+      background-color: #e0e0e0; /* Highlight on hover */
+    }
+    #sidebar ul li.active-history-item { /* Style for the currently selected item */
+        background-color: #cce5ff; /* A light blue, for example */
+        font-weight: bold;
+    }
+    #sidebar .history-item-summary { /* For original text preview */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 240px; /* Adjust based on sidebar width minus padding */
+        display: block; /* Ensure it behaves like a block for ellipsis */
+        font-size: 0.85em;
+        color: #555;
+    }
+  </style>
 </head>
+
 <body>
-  
   <!-- ***** 修改開始：使用 Flask 模板變數來決定初始顯示 ***** -->
   <div id="auth-status-area">
     {% if user_logged_in %}
-      <p>歡迎，{{ user_email }}！</p>
-      <button id="history-button">歷史紀錄</button>
-      <button id="logout-button">登出</button>
+    <p>歡迎，{{ user_email }}！</p>
+    <!-- <button id="history-button">歷史紀錄</button> REMOVE or repurpose -->
+    <button id="logout-button">登出</button>
     {% else %}
-      <button id="login-button-main">登入</button> 
+    <button id="login-button-main">登入</button>
     {% endif %}
   </div>
+
   <!-- ***** 修改結束 ***** -->
-  
-  <div class="container">
-    <h1>英文寫作分析器</h1>
+  <div id="sidebar">
+    <h2>歷史紀錄</h2>
+    <ul id="history-list">
+      {% if user_email %}
+      {% if history_data %}
+      {% for record in history_data %}
+      <li class="history-item" data-id="{{ record.id }}">
+        <p><strong>分析時間：</strong>{{ record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else '未知' }}
+        </p>
+        <p class="history-item-summary"> <!-- Show a snippet of original text -->
+                {{ record.original_text[:60] }}{% if record.original_text|length > 60 %}...{% endif %}
+              </p>
+      </li>
+      {% endfor %}
+      {% else %}
+      <p>目前沒有歷史紀錄。</p>
+      {% endif %}
+      {% else %}
+      <p>請先<a href="{{ url_for('login') }}">登入</a>以查看歷史紀錄。</p>
+      {% endif %}
+    </ul>
+  </div>
 
-    <form id="analyze-form" enctype="multipart/form-data">
-      <textarea name="text_content" id="text_content" placeholder="請輸入或貼上英文文章內容..." rows="15"></textarea>
-      <div class="upload-section">
-        <label for="file">或上傳TXT檔案：</label>
-        <input type="file" id="file" name="file" accept=".txt">
+  <div id="main-content">
+    <div class="container">
+      <h1>英文寫作分析器</h1>
+
+      <form id="analyze-form" enctype="multipart/form-data">
+        <textarea name="text_content" id="text_content" placeholder="請輸入或貼上英文文章內容..." rows="15"></textarea>
+        <div class="upload-section">
+          <label for="file">或上傳TXT檔案：</label>
+          <input type="file" id="file" name="file" accept=".txt">
+        </div>
+        <button type="submit">開始分析</button>
+      </form>
+
+      <div id="status" class="status"></div>
+
+      <div class="tabs hidden">
+        <button onclick="showTab('analysis')" id="tab1" class="hidden">分析結果</button>
+        <button onclick="showTab('editable')" id="tab2" class="hidden">可編輯版本</button>
       </div>
-      <button type="submit">開始分析</button>
-    </form>
 
-    <div id="status" class="status"></div>
-      
-    <div class="tabs hidden">
-      <button onclick="showTab('analysis')" id="tab1" class="hidden">分析結果</button>
-      <button onclick="showTab('editable')" id="tab2" class="hidden">可編輯版本</button>
-    </div>
-    
-    <div id="analysis" class="tab-content hidden">
-      <div id="result" class="result hidden"></div>
-    </div>
-    
-    <div id="editable" class="tab-content hidden" style="display: none;">
-      <h2>分析結果編輯</h2>
-      <div id="editor-container" class="hidden"></div>
-      <div id="download-section" class="hidden">
-        <button id="download-pdf-button" class="download-btn">下載編輯後PDF</button> <!-- 修改按鈕文字 -->
-      </div>  
-    </div>
+      <div id="analysis" class="tab-content hidden">
+        <div id="result" class="result hidden"></div>
+      </div>
 
-    <div id="sample-article" class="sample-article hidden">
+      <div id="editable" class="tab-content hidden" style="display: none;">
+        <h2>分析結果編輯</h2>
+        <div id="editor-container" class="hidden"></div>
+        <div id="download-section" class="hidden">
+          <button id="download-pdf-button" class="download-btn">下載編輯後PDF</button> <!-- 修改按鈕文字 -->
+        </div>
+      </div>
+
+      <div id="sample-article" class="sample-article hidden">
         <div id="sample-content" class="sample-content"></div>
-    </div>
+      </div>
 
-    <!-- 移除這裡的歷史資料連結，因為已整合到登入後的按鈕中 -->
-    <!-- <a href="/history">歷史資料</a> -->
+      <!-- 移除這裡的歷史資料連結，因為已整合到登入後的按鈕中 -->
+      <!-- <a href="/history">歷史資料</a> -->
+    </div>
   </div>
 
   <script>
@@ -74,8 +124,8 @@
       theme: 'snow',  // 主題樣式
       modules: {
         toolbar: [
-          [{ 'header': '1'}, {'header': '2'}, { 'font': [] }],
-          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          [{ 'header': '1' }, { 'header': '2' }, { 'font': [] }],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
           [{ 'align': [] }],
           ['bold', 'italic', 'underline'],
           ['link', 'blockquote'],
@@ -94,6 +144,14 @@
     const tab2 = document.getElementById('tab2');
     const editableTabContent = document.getElementById('editable'); // Renamed
     const analysisTabContent = document.getElementById('analysis'); // Renamed
+    const textContentArea = document.getElementById('text_content');
+    const historyList = document.getElementById('history-list'); // Get the history list UL
+    const analysisTab = document.getElementById('tab1');
+    const editableTab = document.getElementById('tab2');
+    const analysisResultDiv = document.getElementById('result');
+    const editorContainerDiv = document.getElementById('editor-container'); // quill is linked to this
+    const downloadOriginalPdfButtonContainer = document.createElement('div'); // For dynamically adding the PDF button
+    analysisResultDiv.parentNode.insertBefore(downloadOriginalPdfButtonContainer, analysisResultDiv.nextSibling);
 
     document.getElementById('file').addEventListener('change', function () {
       const file = this.files[0];
@@ -110,7 +168,136 @@
         this.value = ''; // 清空檔案欄位
       }
     });
-    
+
+        // Function to clear current analysis display
+    function clearAnalysisDisplay() {
+      console.log("Clearing analysis display...");
+        analysisResultDiv.innerHTML = '';
+        analysisResultDiv.classList.add('hidden');
+        if (quill) {
+            quill.root.innerHTML = ''; // Clear Quill editor
+        }
+        editorContainerDiv.classList.add('hidden');
+        analysisTab.classList.add('hidden');
+        editableTab.classList.add('hidden');
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        downloadSection.classList.add('hidden');
+        // Remove any existing "Download Original PDF" button
+        const existingBtn = analysisResultDiv.querySelector('.download-original-pdf-button');
+        if (existingBtn) existingBtn.remove();
+    }
+
+    // Function to display fetched/loaded history item
+    function displayHistoryItem(data) {
+        console.log("Displaying history item. Data:", data); // 6. Is this function called? What's in data?
+
+        textContentArea.value = data.original_text || '';
+        console.log("Set textarea to:", data.original_text);
+
+        // CRITICAL: Ensure data.analysis_result_html actually contains the HTML
+        if (data.analysis_result_html) {
+            analysisResultDiv.innerHTML = data.analysis_result_html;
+            console.log("Set analysisResultDiv HTML.");
+            if (quill) {
+                quill.root.innerHTML = data.analysis_result_html;
+                console.log("Set Quill editor HTML.");
+            }
+        } else {
+            analysisResultDiv.innerHTML = '<p>分析結果內容不存在或無法載入。</p>';
+            if (quill) quill.root.innerHTML = '';
+            console.warn("analysis_result_html is missing or empty in data:", data);
+        }
+
+        analysisResultDiv.classList.remove('hidden');
+        editorContainerDiv.classList.remove('hidden');
+        analysisTab.classList.remove('hidden');
+        editableTab.classList.remove('hidden');
+        
+        // Ensure showTab correctly shows the 'analysis' tab by default
+        // It might be better to directly set display styles here for clarity after loading history
+        document.getElementById('analysis').style.display = 'block';
+        document.getElementById('editable').style.display = 'none';
+        // then call showTab IF it does more than just display toggling (like active button states)
+        showTab('analysis'); 
+        console.log("Tabs and content visibility updated.");
+
+
+        // PDF button logic (ensure data.pdf_url would exist if applicable)
+        const existingPdfBtn = analysisResultDiv.querySelector(".download-original-pdf-button");
+        if (existingPdfBtn) existingPdfBtn.remove();
+
+        if (data.pdf_url) {
+            // ... (PDF button creation logic - this part requires pdf_url in data)
+            console.log("PDF URL found, creating button:", data.pdf_url);
+        } else {
+            console.log("No PDF URL in data for history item.");
+        }
+
+        downloadSection.classList.remove('hidden'); // Show "Download EDITED PDF" section
+        statusEl.textContent = '已載入歷史紀錄。';
+        console.log("displayHistoryItem finished.");
+    }
+
+    // Event listener for history items
+    if (historyList) {
+      historyList.addEventListener('click', async (e) => {
+        console.log("History list clicked"); // 1. Is this message appearing in console?
+
+        const listItem = e.target.closest('.history-item');
+        if (!listItem) {
+            console.log("Clicked target is not a .history-item or its child.");
+            return;
+        }
+        console.log("Clicked history item:", listItem); // 2. Is the correct <li> element logged?
+
+        const itemId = listItem.dataset.id;
+        if (!itemId) {
+            console.error("History item is missing data-id attribute.");
+            return;
+        }
+        console.log("Fetching history item with ID:", itemId); // 3. Is the correct ID logged?
+
+        // ... (rest of the handler: active class, statusEl, clearAnalysisDisplay) ...
+        // Make sure clearAnalysisDisplay() is not erroring out. Add console.log inside it.
+
+        try {
+          const response = await fetch(`/get_history_item/${itemId}`);
+          console.log("Fetch response status:", response.status); // 4. What's the status?
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log("Data received from /get_history_item:", data); // 5. What data did you get?
+
+            if (data.error) {
+                statusEl.textContent = `載入歷史紀錄失敗: ${data.error}`;
+                console.error("Error from server:", data.error);
+            } else {
+                // Call displayHistoryItem and ensure it's working
+                console.log("Calling displayHistoryItem with data:", data);
+                displayHistoryItem(data);
+            }
+          } else {
+            statusEl.textContent = `載入歷史紀錄失敗 (${response.status})`;
+            const errorText = await response.text();
+            console.error(`Error fetching history item: ${response.status}`, errorText);
+          }
+        } catch (error) {
+          statusEl.textContent = '載入歷史紀錄時發生連線錯誤。';
+          console.error('Network error fetching history item:', error);
+        }
+      });
+    } else {
+        console.error("Element with ID 'history-list' not found!");
+    }
+
+    const formData = new FormData(form);
+    console.log("Client-side FormData entries before fetch:");
+    for (let [key, value] of formData.entries()) {
+      console.log(`Key: ${key}, Value:`, value); // For file, value is a File object
+    }
+    console.log("Textarea content directly:", document.getElementById('text_content').value);
+    console.log("File input files directly:", document.getElementById('file').files);
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       statusEl.textContent = '資料分析中，請稍候...';
@@ -124,11 +311,15 @@
       analysisTabContent.classList.add('hidden');
 
       const formData = new FormData(form);
-      
+      const currentlyActive = historyList ? historyList.querySelector('.active-history-item') : null;
+
       // ***** 修改開始：不再需要獲取 Supabase token 並放在 header *****
       // const { data: { session } } = await supabase.auth.getSession()
       // const token = session ? session.access_token : null; // Handle case where session might be null
       // ***** 修改結束 *****
+      if (currentlyActive) {
+          currentlyActive.classList.remove('active-history-item');
+      }
 
       try {
         const response = await fetch("{{ url_for('index') }}", { // 使用 url_for 生成路徑更佳
@@ -147,8 +338,8 @@
             return;
           }
           if (data.error) { // 其他錯誤
-              statusEl.textContent = '分析失敗：' + data.error;
-              return;
+            statusEl.textContent = '分析失敗：' + data.error;
+            return;
           }
 
           statusEl.textContent = '分析完成！';
@@ -178,13 +369,13 @@
             resultEl.appendChild(document.createElement("br"));
             resultEl.appendChild(downloadOriginalPdfButton);
           }
-          
+
           downloadSection.classList.remove('hidden'); // 顯示編輯後下載的區塊
           showTab('analysis'); // 預設顯示分析結果 tab
         } else if (response.status === 401) { // 未授權
-            const errorData = await response.json();
-            statusEl.textContent = errorData.error || '請先登入後再進行分析。';
-            window.location.href = "{{ url_for('login') }}"; // 跳轉到登入頁面
+          const errorData = await response.json();
+          statusEl.textContent = errorData.error || '請先登入後再進行分析。';
+          window.location.href = "{{ url_for('login') }}"; // 跳轉到登入頁面
         } else {
           const errorData = await response.json();
           statusEl.textContent = `分析失敗 (${response.status})：${errorData.error || '請稍後再試。'}`;
@@ -204,44 +395,44 @@
       // ***** 修改結束 *****
       try {
         const response = await fetch("{{ url_for('generate_pdf') }}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: content })
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: content })
         });
 
         if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            // a.download = 'analysis_result_edited.pdf'; // 後端 send_file 會處理檔名
-            // 從 Content-Disposition 獲取檔名
-            const contentDisposition = response.headers.get('content-disposition');
-            let fileName = 'analysis_edited_result.pdf';
-            if (contentDisposition) {
-                const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/i);
-                if (fileNameMatch && fileNameMatch.length === 2)
-                    fileName = fileNameMatch[1];
-            }
-            a.download = fileName;
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          // a.download = 'analysis_result_edited.pdf'; // 後端 send_file 會處理檔名
+          // 從 Content-Disposition 獲取檔名
+          const contentDisposition = response.headers.get('content-disposition');
+          let fileName = 'analysis_edited_result.pdf';
+          if (contentDisposition) {
+            const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+            if (fileNameMatch && fileNameMatch.length === 2)
+              fileName = fileNameMatch[1];
+          }
+          a.download = fileName;
 
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          a.remove();
         } else if (response.status === 401) {
-            const errorData = await response.json();
-            alert(errorData.error || "請先登入後再操作。");
-            window.location.href = "{{ url_for('login') }}";
+          const errorData = await response.json();
+          alert(errorData.error || "請先登入後再操作。");
+          window.location.href = "{{ url_for('login') }}";
         }
         else {
-            const errorData = await response.json();
-            alert('下載編輯後 PDF 失敗: ' + (errorData.error || response.statusText));
+          const errorData = await response.json();
+          alert('下載編輯後 PDF 失敗: ' + (errorData.error || response.statusText));
         }
-      } catch(error) {
-          console.error('下載 PDF 發生錯誤:', error);
-          alert('下載 PDF 發生錯誤，請檢查網路連線。');
+      } catch (error) {
+        console.error('下載 PDF 發生錯誤:', error);
+        alert('下載 PDF 發生錯誤，請檢查網路連線。');
       }
     });
 
@@ -263,29 +454,35 @@
     // 登入按鈕 (如果存在)
     const loginButtonMain = document.getElementById('login-button-main');
     if (loginButtonMain) {
-        loginButtonMain.addEventListener("click", function () {
-            window.location.href = "{{ url_for('login') }}";
-        });
+      loginButtonMain.addEventListener("click", function () {
+        window.location.href = "{{ url_for('login') }}";
+      });
     }
 
     // 登出按鈕 (如果存在)
     const logoutButton = document.getElementById('logout-button');
     if (logoutButton) {
-        logoutButton.addEventListener("click", function () {
-            // 主要動作是跳轉到 Flask 的登出路由
-            window.location.href = "{{ url_for('logout') }}";
-            // 你可以選擇性地在這裡也呼叫 supabase.auth.signOut()
-            // 以確保前端 Supabase 狀態也清除，但 Flask session 清除是關鍵
-            // supabase.auth.signOut().then(() => console.log("Supabase client session signed out."));
-        });
+      logoutButton.addEventListener("click", function () {
+        // 主要動作是跳轉到 Flask 的登出路由
+        window.location.href = "{{ url_for('logout') }}";
+        // 你可以選擇性地在這裡也呼叫 supabase.auth.signOut()
+        // 以確保前端 Supabase 狀態也清除，但 Flask session 清除是關鍵
+        // supabase.auth.signOut().then(() => console.log("Supabase client session signed out."));
+      });
     }
 
     // 歷史紀錄按鈕 (如果存在)
     const historyButton = document.getElementById('history-button');
     if (historyButton) {
-        historyButton.addEventListener("click", () => {
-            window.location.href = "{{ url_for('history') }}";
-        });
+      // historyButton.style.display = 'none'; // Hide it if always showing history
+      // Or repurpose it, e.g., to toggle sidebar visibility (more complex)
+      historyButton.addEventListener("click", () => {
+          // If you still have a /history route that re-renders index.html:
+          // window.location.href = "{{ url_for('history_page_explicit') }}";
+          // But if index always shows history, this button might not be needed.
+          // For now, let's assume it's removed or hidden via CSS/JS.
+          console.log("History button clicked - functionality may need review.");
+      });
     }
 
     // 原來的 checkAuth 函數，其角色更多是輔助 UI，
@@ -313,4 +510,5 @@
 
   </script>
 </body>
+
 </html>
