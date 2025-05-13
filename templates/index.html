@@ -4,13 +4,26 @@
   <meta charset="UTF-8">
   <title>英文寫作分析器</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <!-- Quill CSS -->
   <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-
-  <!-- Quill JS -->
   <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+  <!-- Supabase JS Client - 保持原樣，因為 checkAuth 和可能的其他前端交互仍需 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.4/dist/umd/supabase.min.js"></script>
+  
 </head>
 <body>
+  
+  <!-- ***** 修改開始：使用 Flask 模板變數來決定初始顯示 ***** -->
+  <div id="auth-status-area">
+    {% if user_logged_in %}
+      <p>歡迎，{{ user_email }}！</p>
+      <button id="history-button">歷史紀錄</button>
+      <button id="logout-button">登出</button>
+    {% else %}
+      <button id="login-button-main">登入</button> 
+    {% endif %}
+  </div>
+  <!-- ***** 修改結束 ***** -->
+  
   <div class="container">
     <h1>英文寫作分析器</h1>
 
@@ -24,7 +37,7 @@
     </form>
 
     <div id="status" class="status"></div>
-
+      
     <div class="tabs hidden">
       <button onclick="showTab('analysis')" id="tab1" class="hidden">分析結果</button>
       <button onclick="showTab('editable')" id="tab2" class="hidden">可編輯版本</button>
@@ -37,22 +50,26 @@
     <div id="editable" class="tab-content hidden" style="display: none;">
       <h2>分析結果編輯</h2>
       <div id="editor-container" class="hidden"></div>
-          <!-- ⭐新增：下載PDF的按鈕 (一開始是隱藏的) -->
       <div id="download-section" class="hidden">
-        <button id="download-pdf-button" class="download-btn">下載PDF結果</button>
+        <button id="download-pdf-button" class="download-btn">下載編輯後PDF</button> <!-- 修改按鈕文字 -->
       </div>  
     </div>
 
-
-    <!-- 範例文章區塊 -->
     <div id="sample-article" class="sample-article hidden">
         <div id="sample-content" class="sample-content"></div>
+    </div>
 
-
-
+    <!-- 移除這裡的歷史資料連結，因為已整合到登入後的按鈕中 -->
+    <!-- <a href="/history">歷史資料</a> -->
   </div>
 
   <script>
+    // Supabase Client 初始化 (保持不變，如果 checkAuth 仍需)
+    const SUPABASE_URL = 'https://ltjzrbkyyaheyhdiozio.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0anpyYmt5eWFoZXloZGlvemlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2OTM3ODMsImV4cCI6MjA2MjI2OTc4M30.Ia_-T5VWVntKVTGvtF9h0j2amnM3BFunh9aPd3vRui4';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+
     var quill = new Quill('#editor-container', {
       theme: 'snow',  // 主題樣式
       modules: {
@@ -66,22 +83,18 @@
         ]
       }
     });
-
-
     const form = document.getElementById('analyze-form');
-    const status = document.getElementById('status');
-    const result = document.getElementById('result');
+    const statusEl = document.getElementById('status'); // Renamed to avoid conflict with window.status
+    const resultEl = document.getElementById('result'); // Renamed
     const sampleCard = document.getElementById('sample-article');
     const sampleContent = document.getElementById('sample-content');
     const downloadSection = document.getElementById('download-section');
-    const downloadButton = document.getElementById('download-pdf-button');
-    const editor = document.getElementById('editor-container');
+    const editorContainer = document.getElementById('editor-container'); // Renamed
     const tab1 = document.getElementById('tab1');
     const tab2 = document.getElementById('tab2');
-    const editable = document.getElementById('editable');
-    const analysis = document.getElementById('analysis');
+    const editableTabContent = document.getElementById('editable'); // Renamed
+    const analysisTabContent = document.getElementById('analysis'); // Renamed
 
-    // 📥 當使用者選擇 TXT 檔案時，讀取並填入 textarea
     document.getElementById('file').addEventListener('change', function () {
       const file = this.files[0];
       if (!file) return;
@@ -97,95 +110,140 @@
         this.value = ''; // 清空檔案欄位
       }
     });
-
-    // 表單提交處理
+    
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      status.textContent = '資料分析中，請稍候...';
-      result.classList.add('hidden');
+      statusEl.textContent = '資料分析中，請稍候...';
+      resultEl.classList.add('hidden');
       sampleCard.classList.add('hidden');
       downloadSection.classList.add('hidden');  // ⭐送出前先隱藏下載按鈕
-      editor.classList.add('hidden');
+      editorContainer.classList.add('hidden');
       tab1.classList.add('hidden');
       tab2.classList.add('hidden');
-      editable.classList.add('hidden');
-      analysis.classList.add('hidden');
+      editableTabContent.classList.add('hidden');
+      analysisTabContent.classList.add('hidden');
 
       const formData = new FormData(form);
+      
+      // ***** 修改開始：不再需要獲取 Supabase token 並放在 header *****
+      // const { data: { session } } = await supabase.auth.getSession()
+      // const token = session ? session.access_token : null; // Handle case where session might be null
+      // ***** 修改結束 *****
 
       try {
-        const response = await fetch('/', {
+        const response = await fetch("{{ url_for('index') }}", { // 使用 url_for 生成路徑更佳
           method: 'POST',
+          // ***** 修改開始：移除 Authorization header *****
+          // headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          // ***** 修改結束 *****
           body: formData
         });
 
         if (response.ok) {
           const data = await response.json();
-          status.textContent = '分析完成！';
+          if (data.error && data.login_required) { // 處理 Flask 返回的需要登入錯誤
+            statusEl.textContent = data.error;
+            window.location.href = "{{ url_for('login') }}"; // 跳轉到登入頁面
+            return;
+          }
+          if (data.error) { // 其他錯誤
+              statusEl.textContent = '分析失敗：' + data.error;
+              return;
+          }
+
+          statusEl.textContent = '分析完成！';
           tab1.classList.remove('hidden');
           tab2.classList.remove('hidden');
-          editable.classList.remove('hidden');
-          analysis.classList.remove('hidden');
+          editableTabContent.classList.remove('hidden');
+          analysisTabContent.classList.remove('hidden');
 
-          // 塞入 Quill 編輯器中
+          // ... 更新 UI ...
           quill.root.innerHTML = data.result;
-          editor.classList.remove('hidden');
-          result.innerHTML = data.result;
-          result.classList.remove('hidden');
+          editorContainer.classList.remove('hidden');
+          resultEl.innerHTML = data.result;
+          resultEl.classList.remove('hidden');
 
-          if (data.sample_article && data.sample_article.trim() !== '') {
-            sampleContent.innerHTML = data.sample_article;
-            sampleCard.classList.remove('hidden');
-          }
-          
-          // 這裡新增一個下載按鈕
+          // ... 處理 sample_article (如果有的話) ...
+
+          // 處理原始報告的 PDF 下載按鈕
           if (data.pdf_url) {
-            const downloadButton = document.createElement("a");
-              downloadButton.href = data.pdf_url;
-              downloadButton.download = "analysis_result.pdf"; // 下載檔名
-              downloadButton.textContent = "下載PDF報告";
-              downloadButton.className = "download-btn"; // 你可以自己定義CSS樣式
-              document.getElementById("result").appendChild(document.createElement("br"));
-              document.getElementById("result").appendChild(downloadButton);
+            let existingDownloadButton = resultEl.querySelector(".download-original-pdf-button");
+            if (existingDownloadButton) existingDownloadButton.remove(); // 移除舊按鈕
+
+            const downloadOriginalPdfButton = document.createElement("a");
+            downloadOriginalPdfButton.href = data.pdf_url;
+            // downloadOriginalPdfButton.download = "analysis_result.pdf"; // 後端 send_file 會處理檔名
+            downloadOriginalPdfButton.textContent = "下載原始PDF報告";
+            downloadOriginalPdfButton.className = "download-button download-original-pdf-button";
+            resultEl.appendChild(document.createElement("br"));
+            resultEl.appendChild(downloadOriginalPdfButton);
           }
           
-          // 顯示下載 PDF 按鈕
-          downloadSection.classList.remove('hidden');
+          downloadSection.classList.remove('hidden'); // 顯示編輯後下載的區塊
+          showTab('analysis'); // 預設顯示分析結果 tab
+        } else if (response.status === 401) { // 未授權
+            const errorData = await response.json();
+            statusEl.textContent = errorData.error || '請先登入後再進行分析。';
+            window.location.href = "{{ url_for('login') }}"; // 跳轉到登入頁面
         } else {
-          status.textContent = '分析失敗，請稍後再試。';
+          const errorData = await response.json();
+          statusEl.textContent = `分析失敗 (${response.status})：${errorData.error || '請稍後再試。'}`;
         }
       } catch (error) {
         console.error('發生錯誤:', error);
-        status.textContent = '連線錯誤，請稍後再試。';
+        statusEl.textContent = '連線錯誤，請稍後再試。';
       }
     });
 
+    document.getElementById('download-pdf-button').addEventListener('click', async function () {
+      const content = quill.root.innerHTML;
+      // ***** 修改開始：下載編輯後 PDF 時也可能需要認證 *****
+      // 考慮到 /generate_pdf 可能也需要登入 (如果內容與用戶相關)
+      // Flask 的 /generate_pdf 路由應檢查 session
+      // fetch 會自動帶上 cookie，所以不需要額外處理 token
+      // ***** 修改結束 *****
+      try {
+        const response = await fetch("{{ url_for('generate_pdf') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content })
+        });
 
-        // 下載 PDF 按鈕處理
-        document.getElementById('download-pdf-button').addEventListener('click', function () {
-      const content = quill.root.innerHTML;  // 取得 Quill 編輯器中的內容
-      fetch('/generate_pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: content })
-      })
-      .then(response => response.blob())
-      .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = 'analysis_result.pdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-      })
-      .catch(error => {
-        console.error('下載 PDF 發生錯誤:', error);
-      });
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            // a.download = 'analysis_result_edited.pdf'; // 後端 send_file 會處理檔名
+            // 從 Content-Disposition 獲取檔名
+            const contentDisposition = response.headers.get('content-disposition');
+            let fileName = 'analysis_edited_result.pdf';
+            if (contentDisposition) {
+                const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+                if (fileNameMatch && fileNameMatch.length === 2)
+                    fileName = fileNameMatch[1];
+            }
+            a.download = fileName;
+
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        } else if (response.status === 401) {
+            const errorData = await response.json();
+            alert(errorData.error || "請先登入後再操作。");
+            window.location.href = "{{ url_for('login') }}";
+        }
+        else {
+            const errorData = await response.json();
+            alert('下載編輯後 PDF 失敗: ' + (errorData.error || response.statusText));
+        }
+      } catch(error) {
+          console.error('下載 PDF 發生錯誤:', error);
+          alert('下載 PDF 發生錯誤，請檢查網路連線。');
+      }
     });
-
-
 
     function showTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
@@ -193,13 +251,65 @@
 
       // 額外控制分析與編輯區塊的顯示（可選）
       if (tabId === 'analysis') {
-        result.classList.remove('hidden');
-        editor.classList.add('hidden');
+        resultEl.classList.remove('hidden');
+        editorContainer.classList.add('hidden');
       } else {
-        result.classList.add('hidden');
-        editor.classList.remove('hidden');
+        resultEl.classList.add('hidden');
+        editorContainer.classList.remove('hidden');
       }
     }
+
+    // ***** 修改後的 Auth 按鈕事件監聽 *****
+    // 登入按鈕 (如果存在)
+    const loginButtonMain = document.getElementById('login-button-main');
+    if (loginButtonMain) {
+        loginButtonMain.addEventListener("click", function () {
+            window.location.href = "{{ url_for('login') }}";
+        });
+    }
+
+    // 登出按鈕 (如果存在)
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener("click", function () {
+            // 主要動作是跳轉到 Flask 的登出路由
+            window.location.href = "{{ url_for('logout') }}";
+            // 你可以選擇性地在這裡也呼叫 supabase.auth.signOut()
+            // 以確保前端 Supabase 狀態也清除，但 Flask session 清除是關鍵
+            // supabase.auth.signOut().then(() => console.log("Supabase client session signed out."));
+        });
+    }
+
+    // 歷史紀錄按鈕 (如果存在)
+    const historyButton = document.getElementById('history-button');
+    if (historyButton) {
+        historyButton.addEventListener("click", () => {
+            window.location.href = "{{ url_for('history') }}";
+        });
+    }
+
+    // 原來的 checkAuth 函數，其角色更多是輔助 UI，
+    // 因為頁面初始狀態由 Flask 模板變數決定。
+    // 如果你希望在不同分頁登入後，此分頁能動態更新 UI，可以保留並調整。
+    /*
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser();
+      // 這個函數現在更多是用來監聽 Supabase 狀態變化，
+      // 但主要的登入/登出流程由 Flask 控制。
+      // 例如，如果用戶在另一個標籤頁透過 Supabase JS 登出，
+      // 你可以用 onAuthStateChange 來更新此頁面的 UI。
+      // 但核心的 Flask session 狀態不會因此改變，除非用戶訪問 Flask 的 /logout。
+    }
+    // supabase.auth.onAuthStateChange((event, session) => {
+    //   console.log('Supabase Auth State Change:', event, session);
+    //   // 根據 event 和 session 更新前端 UI，例如重新渲染 auth-status-area
+    //   // 但要小心，這不應覆蓋 Flask 的權威狀態。
+    //   // 如果 event 是 SIGNED_OUT，並且 Flask session 可能還在，
+    //   // 這裡的 UI 更新後，用戶點擊需要認證的操作仍會被 Flask 攔截。
+    //   // 最穩妥的方式是讓所有登入登出操作都經過 Flask。
+    // });
+    // checkAuth(); // 初始檢查可以保留，但優先級低於 Flask 渲染的狀態
+    */
 
   </script>
 </body>

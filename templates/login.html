@@ -1,0 +1,103 @@
+<!--
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>登入</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="login-container">
+    <h2>使用者登入</h2>
+    <form id="login-form">
+      <input type="email" id="email" placeholder="Email" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <button type="submit">登入</button>
+    </form>
+    <div id="error-message" class="error"></div>
+  </div>
+-->
+<!--
+  改用 ESM 模組版 
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+    const supabaseUrl = 'https://ltjzrbkyyaheyhdiozio.supabase.co'
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0anpyYmt5eWFoZXloZGlvemlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2OTM3ODMsImV4cCI6MjA2MjI2OTc4M30.Ia_-T5VWVntKVTGvtF9h0j2amnM3BFunh9aPd3vRui4'
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const loginForm = document.getElementById('login-form')
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault()
+        const email = document.getElementById('email').value
+        const password = document.getElementById('password').value
+
+        // 先嘗試註冊
+        const { error: signupError } = await supabase.auth.signUp({
+          email,
+          password
+        })
+
+        if (!signupError) {
+          alert('註冊成功，歡迎！')
+
+        } else if (signupError.message.includes('User already registered')) {
+          // 已註冊則嘗試登入
+          const { error: signinError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          })
+          if (!signinError) {
+            alert('登入成功，歡迎回來！')
+            window.location.href = '/'
+          } else {
+            alert('密碼錯誤或登入失敗')
+          }
+        } else {
+          alert('錯誤：' + signupError.message)
+        }
+      })
+    })
+  </script>
+</body>
+</html>
+-->
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>登入</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="login-container">
+    <h2>使用者登入/註冊</h2> <!-- 修改標題以反映功能 -->
+
+    <!-- ***** 修改開始 ***** -->
+    <form id="login-form" method="POST" action="{{ url_for('login') }}">
+      <input type="email" id="email" name="email" placeholder="Email" required>
+      <input type="password" id="password" name="password" placeholder="Password" required>
+      <button type="submit">登入 / 註冊</button>
+    </form>
+    <!-- ***** 修改結束 ***** -->
+
+    <!-- 顯示來自 Flask 的錯誤訊息 -->
+    {% if error %}
+      <div id="error-message" class="error">{{ error }}</div>
+    {% endif %}
+
+    <p>新用戶將自動註冊。如果帳號已存在，則會嘗試登入。</p> <!-- 提示用戶 -->
+  </div>
+
+  <!-- ***** 修改開始 ***** -->
+  <!-- 不再需要前端 Supabase JS 來處理登入/註冊邏輯 -->
+  <!-- <script type="module">
+    // ... 原來的 Supabase JS 登入/註冊代碼 ...
+    // 這整段 <script> 內容可以移除
+  </script> -->
+  <!-- ***** 修改結束 ***** -->
+
+</body>
+</html>
