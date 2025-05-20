@@ -522,6 +522,7 @@ button:active, .button-like:active {
   width: 100%;
   padding: 12px 15px;
   margin-bottom: 20px;
+  margin-left: 4px;
   background-color: var(--bg-primary); /* 登入頁輸入框背景 */
   color: var(--text-primary);
   border-radius: var(--border-radius-small);
@@ -674,3 +675,4 @@ button:active, .button-like:active {
   min-width: 100%;
   z-index: 1; /* 確保偽元素在內容下方，背景圖片之上 */
 }
+
