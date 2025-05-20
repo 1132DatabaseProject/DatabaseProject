@@ -9,31 +9,7 @@
   <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
   <!-- Supabase JS Client - 保持原樣，因為 checkAuth 和可能的其他前端交互仍需 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.4/dist/umd/supabase.min.js"></script>
-  <style>
-    /* Add some basic styling for clickable history items */
-    #sidebar ul li {
-      cursor: pointer;
-      padding: 10px; /* Add more padding for better clickability */
-      border-radius: 4px;
-      transition: background-color 0.2s ease-in-out;
-    }
-    #sidebar ul li:hover {
-      background-color: #e0e0e0; /* Highlight on hover */
-    }
-    #sidebar ul li.active-history-item { /* Style for the currently selected item */
-        background-color: #cce5ff; /* A light blue, for example */
-        font-weight: bold;
-    }
-    #sidebar .history-item-summary { /* For original text preview */
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 240px; /* Adjust based on sidebar width minus padding */
-        display: block; /* Ensure it behaves like a block for ellipsis */
-        font-size: 0.85em;
-        color: #555;
-    }
-  </style>
+  
 </head>
 
 <body>
@@ -44,6 +20,7 @@
     <!-- <button id="history-button">歷史紀錄</button> REMOVE or repurpose -->
     <button id="logout-button">登出</button>
     {% else %}
+    <p>登入來進行分析吧！</p>
     <button id="login-button-main">登入</button>
     {% endif %}
   </div>
@@ -85,7 +62,7 @@
         <button type="submit">開始分析</button>
       </form>
 
-      <div id="status" class="status"></div>
+      <div id="status" class="status hidden"></div>
 
       <div class="tabs hidden">
         <button onclick="showTab('analysis')" id="tab1" class="hidden">分析結果</button>
@@ -94,8 +71,10 @@
 
       <div id="analysis" class="tab-content hidden">
         <div id="result" class="result hidden"></div>
+        <div id="original-pdf-download-container" style="text-align: center; ">
+        
+        </div>
       </div>
-
       <div id="editable" class="tab-content hidden" style="display: none;">
         <h2>分析結果編輯</h2>
         <div id="editor-container" class="hidden"></div>
@@ -107,9 +86,18 @@
       <div id="sample-article" class="sample-article hidden">
         <div id="sample-content" class="sample-content"></div>
       </div>
+      
+      <!-- ⭐⭐ 新增：滾動按鈕 ⭐⭐ -->
+      <div id="scroll-buttons-container">
+        <button id="scroll-to-top-btn" title="滾動到頂部">↑</button> <!-- 或使用圖示 -->
+        <button id="scroll-to-bottom-btn" title="滾動到底部">↓</button> <!-- 或使用圖示 -->
+      </div>
 
-      <!-- 移除這裡的歷史資料連結，因為已整合到登入後的按鈕中 -->
-      <!-- <a href="/history">歷史資料</a> -->
+      <!-- 模式切換按鈕 -->
+      <button id="theme-toggle-button" title="切換色彩模式">
+        <span class="sun-icon">🌞</span> <!-- 太陽圖示 (Unicode) -->
+        <span class="moon-icon">🌛</span> <!-- 月亮圖示 (Unicode) -->
+      </button>
     </div>
   </div>
 
@@ -142,6 +130,8 @@
     const editorContainer = document.getElementById('editor-container'); // Renamed
     const tab1 = document.getElementById('tab1');
     const tab2 = document.getElementById('tab2');
+    const tabsContainer = document.querySelector('.tabs'); // Tabs 的父容器
+    //const originalPdfDownloadContainer = document.getElementById('original-pdf-download-container');
     const editableTabContent = document.getElementById('editable'); // Renamed
     const analysisTabContent = document.getElementById('analysis'); // Renamed
     const textContentArea = document.getElementById('text_content');
@@ -150,8 +140,9 @@
     const editableTab = document.getElementById('tab2');
     const analysisResultDiv = document.getElementById('result');
     const editorContainerDiv = document.getElementById('editor-container'); // quill is linked to this
-    const downloadOriginalPdfButtonContainer = document.createElement('div'); // For dynamically adding the PDF button
-    analysisResultDiv.parentNode.insertBefore(downloadOriginalPdfButtonContainer, analysisResultDiv.nextSibling);
+    //const downloadOriginalPdfButtonContainer = document.createElement('div'); // For dynamically adding the PDF button
+    const downloadOriginalPdfButtonContainer = document.getElementById('original-pdf-download-container'); 
+    //resultEl.parentNode.insertBefore(downloadOriginalPdfButtonContainer, resultEl.nextSibling);
 
     document.getElementById('file').addEventListener('change', function () {
       const file = this.files[0];
@@ -172,118 +163,251 @@
         // Function to clear current analysis display
     function clearAnalysisDisplay() {
       console.log("Clearing analysis display...");
-        analysisResultDiv.innerHTML = '';
-        analysisResultDiv.classList.add('hidden');
+        resultEl.innerHTML = '';
+        resultEl.classList.add('hidden');
         if (quill) {
             quill.root.innerHTML = ''; // Clear Quill editor
         }
+        if (downloadOriginalPdfButtonContainer) {
+            downloadOriginalPdfButtonContainer.innerHTML = ''; // 清空原始 PDF 下載按鈕
+        }
+        statusEl.classList.remove('error');
+        tabsContainer.classList.add('hidden');
+        analysisTabContent.classList.add('hidden'); 
+        editableTabContent.classList.add('hidden');
         editorContainerDiv.classList.add('hidden');
         analysisTab.classList.add('hidden');
         editableTab.classList.add('hidden');
         document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
         downloadSection.classList.add('hidden');
+        statusEl.classList.add('hidden');
         // Remove any existing "Download Original PDF" button
-        const existingBtn = analysisResultDiv.querySelector('.download-original-pdf-button');
-        if (existingBtn) existingBtn.remove();
+        const existingBtn = resultEl.querySelector('download-original-pdf-button');
+        //if (existingBtn) existingBtn.remove();
     }
 
+
+    
     // Function to display fetched/loaded history item
     function displayHistoryItem(data) {
         console.log("Displaying history item. Data:", data); // 6. Is this function called? What's in data?
+        clearAnalysisDisplay(); // 先調用清理函數
 
         textContentArea.value = data.original_text || '';
         console.log("Set textarea to:", data.original_text);
 
-        // CRITICAL: Ensure data.analysis_result_html actually contains the HTML
-        if (data.analysis_result_html) {
-            analysisResultDiv.innerHTML = data.analysis_result_html;
-            console.log("Set analysisResultDiv HTML.");
-            if (quill) {
-                quill.root.innerHTML = data.analysis_result_html;
-                console.log("Set Quill editor HTML.");
+        // data.html_for_result_tab 是完整的 HTML，用於 #result div
+        // data.html_for_quill_editor 是提取後的核心 HTML，用於 Quill
+        if (data.html_for_result_tab || data.html_for_quill_editor) {
+            if (data.html_for_result_tab) {
+                analysisResultDiv.innerHTML = data.html_for_result_tab;
+                console.log("Set analysisResultDiv HTML with FULL HTML from history.");
+            } else {
+                analysisResultDiv.innerHTML = "<p>分析結果顯示內容缺失。</p>";
             }
+
+            if (quill && data.html_for_quill_editor !== undefined) { // 確保字段存在，即使是空串
+                quill.root.innerHTML = data.html_for_quill_editor;
+                console.log("Set Quill editor HTML with CORE content from history:", (data.html_for_quill_editor || "").substring(0, 200) + "...");
+            } else if (quill) {
+                quill.root.innerHTML = ""; // 如果核心內容缺失，清空Quill
+                console.warn("Core content for Quill (history) is undefined or missing.");
+            }
+            // ⭐⭐⭐ 為歷史記錄創建並添加下載原始 PDF 的按鈕 ⭐⭐⭐
+            if (downloadOriginalPdfButtonContainer) {
+                downloadOriginalPdfButtonContainer.innerHTML = ''; // 清空
+                if (data.pdf_url) { // 檢查歷史記錄數據中是否有 pdf_url
+                    const downloadBtn = document.createElement('a');
+                    downloadBtn.href = data.pdf_url;
+                    downloadBtn.textContent = '下載原始報告 (PDF檔)';
+                    downloadBtn.className = 'button-like download-original-pdf-button';
+                    downloadOriginalPdfButtonContainer.appendChild(downloadBtn);
+                    console.log("Original PDF download button added for history item with URL:", data.pdf_url);
+                } else {
+                    console.warn("pdf_url not found in history data.");
+                    // 可以選擇在此處不顯示按鈕，或者顯示一個提示信息
+                }
+            } else {
+                console.error("Element with ID 'original-pdf-download-container' not found for history item!");
+            }
+
+            statusEl.textContent = '已載入歷史紀錄。';
+            statusEl.classList.remove('hidden');
+            tabsContainer.classList.remove('hidden');
+            editorContainerDiv.classList.remove('hidden');
+            analysisTab.classList.remove('hidden');
+            editableTab.classList.remove('hidden');
+            resultEl.classList.remove('hidden');
+            downloadSection.classList.remove('hidden');
+
+            // then call showTab IF it does more than just display toggling (like active button states)
+            showTab('analysis'); 
+            console.log("Tabs and content visibility updated.");
         } else {
-            analysisResultDiv.innerHTML = '<p>分析結果內容不存在或無法載入。</p>';
-            if (quill) quill.root.innerHTML = '';
-            console.warn("analysis_result_html is missing or empty in data:", data);
+          analysisResultDiv.innerHTML = '<p>分析結果內容不存在或無法載入。</p>';
+          if (quill) quill.root.innerHTML = '';
+          console.warn("Both full HTML and core HTML for Quill are missing in history data.");
+          
+          resultEl.classList.add('hidden');
+          sampleCard.classList.add('hidden');
+          downloadSection.classList.add('hidden');  // ⭐送出前先隱藏下載按鈕
+          editorContainer.classList.add('hidden');
+          tab1.classList.add('hidden');
+          tab2.classList.add('hidden');
+          editableTabContent.classList.add('hidden');
+          analysisTabContent.classList.add('hidden');
         }
-
-        analysisResultDiv.classList.remove('hidden');
-        editorContainerDiv.classList.remove('hidden');
-        analysisTab.classList.remove('hidden');
-        editableTab.classList.remove('hidden');
-        
-        // Ensure showTab correctly shows the 'analysis' tab by default
-        // It might be better to directly set display styles here for clarity after loading history
-        document.getElementById('analysis').style.display = 'block';
-        document.getElementById('editable').style.display = 'none';
-        // then call showTab IF it does more than just display toggling (like active button states)
-        showTab('analysis'); 
-        console.log("Tabs and content visibility updated.");
-
-
-        // PDF button logic (ensure data.pdf_url would exist if applicable)
-        const existingPdfBtn = analysisResultDiv.querySelector(".download-original-pdf-button");
-        if (existingPdfBtn) existingPdfBtn.remove();
-
-        if (data.pdf_url) {
-            // ... (PDF button creation logic - this part requires pdf_url in data)
-            console.log("PDF URL found, creating button:", data.pdf_url);
-        } else {
-            console.log("No PDF URL in data for history item.");
-        }
-
-        downloadSection.classList.remove('hidden'); // Show "Download EDITED PDF" section
-        statusEl.textContent = '已載入歷史紀錄。';
         console.log("displayHistoryItem finished.");
     }
+        
 
     // Event listener for history items
     if (historyList) {
-      historyList.addEventListener('click', async (e) => {
-        console.log("History list clicked"); // 1. Is this message appearing in console?
 
+      historyList.addEventListener('mouseover', function(e) {
         const listItem = e.target.closest('.history-item');
-        if (!listItem) {
-            console.log("Clicked target is not a .history-item or its child.");
-            return;
-        }
-        console.log("Clicked history item:", listItem); // 2. Is the correct <li> element logged?
+        if (listItem) {
+            // 檢查是否已經有刪除按鈕，避免重複添加
+            if (!listItem.querySelector('.delete-history-btn')) {
+                const deleteBtn = document.createElement('button');
+                //eleteBtn.innerHTML = '🗑️'; // 垃圾桶圖示 (Unicode)
+                deleteBtn.className = 'delete-history-btn';
+                deleteBtn.title = '刪除此紀錄';
+                deleteBtn.dataset.itemId = listItem.dataset.id; // 將 item ID 存儲在按鈕上
+                // ⭐ 創建 img 元素來顯示圖片 ⭐
+                const imgIcon = document.createElement('img');
+                imgIcon.src = "{{ url_for('static', filename='images/trash_icon.png') }}"; // ⭐ 使用 url_for 生成圖片路徑
+                // 或者 imgIcon.src = "/static/images/trash_icon.png"; // 直接寫路徑也可以，但 url_for 更佳
+                imgIcon.alt = '刪除'; // 為圖片添加 alt 文本，提高可訪問性
+                // 可以通過 CSS 控制圖片大小，或者直接在 JS 中設置
+                // imgIcon.style.width = '16px'; 
+                // imgIcon.style.height = '16px';
+                // imgIcon.style.verticalAlign = 'middle'; // 嘗試垂直居中圖片
 
-        const itemId = listItem.dataset.id;
-        if (!itemId) {
-            console.error("History item is missing data-id attribute.");
-            return;
-        }
-        console.log("Fetching history item with ID:", itemId); // 3. Is the correct ID logged?
+                deleteBtn.appendChild(imgIcon); // 將圖片添加到按鈕中
 
-        // ... (rest of the handler: active class, statusEl, clearAnalysisDisplay) ...
-        // Make sure clearAnalysisDisplay() is not erroring out. Add console.log inside it.
-
-        try {
-          const response = await fetch(`/get_history_item/${itemId}`);
-          console.log("Fetch response status:", response.status); // 4. What's the status?
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log("Data received from /get_history_item:", data); // 5. What data did you get?
-
-            if (data.error) {
-                statusEl.textContent = `載入歷史紀錄失敗: ${data.error}`;
-                console.error("Error from server:", data.error);
-            } else {
-                // Call displayHistoryItem and ensure it's working
-                console.log("Calling displayHistoryItem with data:", data);
-                displayHistoryItem(data);
+                // 將刪除按鈕添加到列表項的末尾
+                listItem.appendChild(deleteBtn);
             }
-          } else {
-            statusEl.textContent = `載入歷史紀錄失敗 (${response.status})`;
-            const errorText = await response.text();
-            console.error(`Error fetching history item: ${response.status}`, errorText);
+        }
+    });
+
+      historyList.addEventListener('mouseout', function(e) {
+          const listItem = e.target.closest('.history-item');
+          if (listItem && !listItem.contains(e.relatedTarget)) { // 確保鼠標移出了整個列表項
+              const deleteBtn = listItem.querySelector('.delete-history-btn');
+              if (deleteBtn) {
+                  // 為了簡化，我們讓 CSS 控制顯示/隱藏
+                  // deleteBtn.remove(); // 或者直接移除，下次懸停再創建
+              }
           }
-        } catch (error) {
-          statusEl.textContent = '載入歷史紀錄時發生連線錯誤。';
-          console.error('Network error fetching history item:', error);
+      });
+      
+      historyList.addEventListener('click', async (e) => {
+        const deleteButton = e.target.closest('.delete-history-btn');
+        const historyItemLink = e.target.closest('.history-item:not(.delete-history-btn)'); // 確保點擊的是條目本身而不是刪除按鈕
+
+        if (deleteButton) {
+            e.stopPropagation(); // 阻止事件冒泡到父級的 historyItemLink 點擊事件
+            const itemIdToDelete = deleteButton.dataset.itemId;
+            const listItemToDelete = deleteButton.closest('.history-item'); // 找到父級 li
+
+            if (itemIdToDelete && listItemToDelete) {
+                // 彈出確認對話框
+                if (window.confirm('您確定要刪除這條歷史紀錄嗎？')) {
+                    statusEl.textContent = '正在刪除歷史紀錄...';
+                    statusEl.classList.remove('hidden', 'error');
+
+                    try {
+                        const response = await fetch(`/delete_history_item/${itemIdToDelete}`, {
+                            method: 'DELETE',
+                            headers: {
+                                // 如果你的後端需要 CSRF token 或其他認證頭，在這裡添加
+                                // 'X-CSRF-TOKEN': 'your_csrf_token_here',
+                                'Accept': 'application/json',
+                            }
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok && data.success) {
+                            statusEl.textContent = data.message || '歷史紀錄已刪除。';
+                            listItemToDelete.remove(); // 從前端列表中移除
+                            console.log(`History item ${itemIdToDelete} deleted successfully.`);
+                            // 可選：如果當前顯示的是被刪除的記錄，則清理主內容區
+                            if (analysisResultDiv.dataset.currentHistoryId === itemIdToDelete) {
+                                clearAnalysisDisplay();
+                            }
+                        } else {
+                            statusEl.textContent = `刪除失敗: ${data.error || response.statusText}`;
+                            statusEl.classList.add('error');
+                            console.error(`Failed to delete history item ${itemIdToDelete}:`, data.error || response.statusText);
+                        }
+                    } catch (error) {
+                        statusEl.textContent = '刪除歷史紀錄時發生連線錯誤。';
+                        statusEl.classList.add('error');
+                        console.error('Network error deleting history item:', error);
+                    }
+                }
+            }
+        } else if (historyItemLink) { // 處理正常的歷史條目點擊 (加載內容)
+            // console.log("History list clicked for loading content");
+            const listItem = historyItemLink; // e.target.closest('.history-item');
+            
+            if (!listItem) {
+                console.log("Clicked target is not a .history-item or its child.");
+                return;
+            }
+            console.log("Clicked history item:", listItem); // 2. Is the correct <li> element logged?
+
+            const itemId = listItem.dataset.id;
+            if (!itemId) {
+                console.error("History item is missing data-id attribute.");
+                return;
+            }
+            console.log("Fetching history item with ID:", itemId); // 3. Is the correct ID logged?
+
+            // ... (rest of the handler: active class, statusEl, clearAnalysisDisplay) ...
+            // Make sure clearAnalysisDisplay() is not erroring out. Add console.log inside it.
+            // ⭐⭐⭐ 在 fetch 之前清理顯示 ⭐⭐⭐
+            statusEl.textContent = '正在載入歷史紀錄...';
+            statusEl.classList.remove('hidden');
+            clearAnalysisDisplay(); // 調用清理函數
+
+            // 移除先前 active 的 class
+            const currentlyActive = historyList.querySelector('.active-history-item');
+            if (currentlyActive) {
+                currentlyActive.classList.remove('active-history-item');
+            }
+            // 給當前點擊的項目添加 active class
+            if (listItem) {
+                listItem.classList.add('active-history-item');
+            }
+            try {
+              const response = await fetch(`/get_history_item/${itemId}`);
+              console.log("Fetch response status:", response.status); // 4. What's the status?
+
+              if (response.ok) {
+                const data = await response.json();
+                console.log("Data received from /get_history_item:", data); // 5. What data did you get?
+
+                if (data.error) {
+                    statusEl.textContent = `載入歷史紀錄失敗: ${data.error}`;
+                    console.error("Error from server:", data.error);
+                } else {
+                    // Call displayHistoryItem and ensure it's working
+                    console.log("Calling displayHistoryItem with data:", data);
+                    displayHistoryItem(data);
+                }
+              } else {
+                statusEl.textContent = `載入歷史紀錄失敗 (${response.status})`;
+                const errorText = await response.text();
+                console.error(`Error fetching history item: ${response.status}`, errorText);
+              }
+            } catch (error) {
+              statusEl.textContent = '載入歷史紀錄時發生連線錯誤。';
+              console.error('Network error fetching history item:', error);
+            }
         }
       });
     } else {
@@ -301,6 +425,11 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       statusEl.textContent = '資料分析中，請稍候...';
+      statusEl.classList.remove('hidden'); // 移除 error class 以防上次是錯誤
+      
+      statusEl.classList.remove('hidden', 'error'); // 移除 error class 以防上次是錯誤
+      //clearAnalysisDisplay(); // 調用清理函數
+
       resultEl.classList.add('hidden');
       sampleCard.classList.add('hidden');
       downloadSection.classList.add('hidden');  // ⭐送出前先隱藏下載按鈕
@@ -311,27 +440,16 @@
       analysisTabContent.classList.add('hidden');
 
       const formData = new FormData(form);
-      const currentlyActive = historyList ? historyList.querySelector('.active-history-item') : null;
-
-      // ***** 修改開始：不再需要獲取 Supabase token 並放在 header *****
-      // const { data: { session } } = await supabase.auth.getSession()
-      // const token = session ? session.access_token : null; // Handle case where session might be null
-      // ***** 修改結束 *****
-      if (currentlyActive) {
-          currentlyActive.classList.remove('active-history-item');
-      }
-
+      
       try {
         const response = await fetch("{{ url_for('index') }}", { // 使用 url_for 生成路徑更佳
           method: 'POST',
-          // ***** 修改開始：移除 Authorization header *****
-          // headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-          // ***** 修改結束 *****
           body: formData
         });
 
         if (response.ok) {
           const data = await response.json();
+          
           if (data.error && data.login_required) { // 處理 Flask 返回的需要登入錯誤
             statusEl.textContent = data.error;
             window.location.href = "{{ url_for('login') }}"; // 跳轉到登入頁面
@@ -341,33 +459,52 @@
             statusEl.textContent = '分析失敗：' + data.error;
             return;
           }
-
+          tabsContainer.classList.remove('hidden');
           statusEl.textContent = '分析完成！';
+          statusEl.classList.remove('hidden');
           tab1.classList.remove('hidden');
           tab2.classList.remove('hidden');
           editableTabContent.classList.remove('hidden');
           analysisTabContent.classList.remove('hidden');
-
-          // ... 更新 UI ...
           quill.root.innerHTML = data.result;
           editorContainer.classList.remove('hidden');
           resultEl.innerHTML = data.result;
           resultEl.classList.remove('hidden');
 
+          if (data.html_for_result_tab) {
+              resultEl.innerHTML = data.html_for_result_tab;
+              console.log("Set resultEl HTML with FULL HTML from analysis.");
+          } else {
+              resultEl.innerHTML = "<p>分析結果顯示內容缺失。</p>";
+          }
+
           // ... 處理 sample_article (如果有的話) ...
+          // 3. 填充分析結果到 Quill 編輯器 ⭐⭐⭐
+          if (quill && data.html_for_quill_editor !== undefined) {
+              quill.root.innerHTML = data.html_for_quill_editor;
+              console.log("Set Quill editor HTML with CORE content from analysis:", (data.html_for_quill_editor || "").substring(0, 200) + "...");
+          } else if (quill) {
+              quill.root.innerHTML = "";
+              console.warn("Core content for Quill (analysis) is undefined or missing.");
+          }
+            // editorContainer.classList.remove('hidden'); // 由 showTab('editable') 控制
 
-          // 處理原始報告的 PDF 下載按鈕
-          if (data.pdf_url) {
-            let existingDownloadButton = resultEl.querySelector(".download-original-pdf-button");
-            if (existingDownloadButton) existingDownloadButton.remove(); // 移除舊按鈕
-
-            const downloadOriginalPdfButton = document.createElement("a");
-            downloadOriginalPdfButton.href = data.pdf_url;
-            // downloadOriginalPdfButton.download = "analysis_result.pdf"; // 後端 send_file 會處理檔名
-            downloadOriginalPdfButton.textContent = "下載原始PDF報告";
-            downloadOriginalPdfButton.className = "download-button download-original-pdf-button";
-            resultEl.appendChild(document.createElement("br"));
-            resultEl.appendChild(downloadOriginalPdfButton);
+          // ⭐⭐⭐ 為歷史記錄創建並添加下載原始 PDF 的按鈕 ⭐⭐⭐
+          if (downloadOriginalPdfButtonContainer) {
+              downloadOriginalPdfButtonContainer.innerHTML = ''; // 清空
+              if (data.pdf_url) { // 假設歷史記錄的 data 也包含 pdf_url
+                  const downloadBtnLink = document.createElement('a');
+                  downloadBtnLink.href = data.pdf_url;
+                  downloadBtnLink.textContent = '下載原始報告 (PDF檔)';
+                  downloadBtnLink.className = 'button-like download-original-pdf-button';
+                  
+                  downloadOriginalPdfButtonContainer.appendChild(downloadBtnLink); // ⭐ 將 <a> 標籤添加到容器中
+                  console.log("Original PDF download button (<a> tag) added for history item to container with URL:", data.pdf_url);
+              } else {
+                  console.warn("pdf_url not found in history data.");
+              }
+          } else {
+              console.error("Element with ID 'original-pdf-download-container' not found for history item!");
           }
 
           downloadSection.classList.remove('hidden'); // 顯示編輯後下載的區塊
@@ -388,11 +525,6 @@
 
     document.getElementById('download-pdf-button').addEventListener('click', async function () {
       const content = quill.root.innerHTML;
-      // ***** 修改開始：下載編輯後 PDF 時也可能需要認證 *****
-      // 考慮到 /generate_pdf 可能也需要登入 (如果內容與用戶相關)
-      // Flask 的 /generate_pdf 路由應檢查 session
-      // fetch 會自動帶上 cookie，所以不需要額外處理 token
-      // ***** 修改結束 *****
       try {
         const response = await fetch("{{ url_for('generate_pdf') }}", {
           method: 'POST',
@@ -437,18 +569,43 @@
     });
 
     function showTab(tabId) {
-      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-      document.getElementById(tabId).style.display = 'block';
+    console.log("Showing tab:", tabId);
+    // 隱藏所有 tab content 區塊
+    document.querySelectorAll('.tab-content').forEach(el => {
+        el.style.display = 'none'; // 或者 el.classList.add('hidden');
+        el.classList.add('hidden'); // 統一使用 hidden class
+    });
 
-      // 額外控制分析與編輯區塊的顯示（可選）
-      if (tabId === 'analysis') {
-        resultEl.classList.remove('hidden');
-        editorContainer.classList.add('hidden');
-      } else {
-        resultEl.classList.add('hidden');
-        editorContainer.classList.remove('hidden');
-      }
+    // 顯示目標 tab content 區塊
+    const targetTabContent = document.getElementById(tabId);
+    if (targetTabContent) {
+        targetTabContent.style.display = 'block'; // 或者 targetTabContent.classList.remove('hidden');
+        targetTabContent.classList.remove('hidden'); // 統一使用 hidden class
+        console.log(tabId + " content displayed.");
+    } else {
+        console.error("Target tab content not found for id:", tabId);
+        return;
     }
+
+    // 更新 Tab 按鈕的 active 狀態 (如果有的話)
+    // 假設你的 tab 按鈕 ID 是 tab1 (對應 analysis) 和 tab2 (對應 editable)
+    const tabButtons = [tab1, tab2]; // tab1 和 tab2 是你之前獲取的按鈕元素
+    tabButtons.forEach(button => {
+        if (button) button.classList.remove('active-tab'); // 假設你有 'active-tab' class
+    });
+
+    if (tabId === 'analysis' && tab1) {
+        if (tab1) tab1.classList.add('active-tab');
+        resultEl.classList.remove('hidden');         // 顯示分析結果 div
+        editorContainer.classList.add('hidden');   // 隱藏 Quill 編輯器 div
+        console.log("#result shown, #editor-container hidden");
+    } else if (tabId === 'editable' && tab2) {
+        if (tab2) tab2.classList.add('active-tab');
+        resultEl.classList.add('hidden');            // 隱藏分析結果 div
+        editorContainer.classList.remove('hidden');  // 顯示 Quill 編輯器 div
+        console.log("#result hidden, #editor-container shown");
+    }
+}
 
     // ***** 修改後的 Auth 按鈕事件監聽 *****
     // 登入按鈕 (如果存在)
@@ -465,49 +622,125 @@
       logoutButton.addEventListener("click", function () {
         // 主要動作是跳轉到 Flask 的登出路由
         window.location.href = "{{ url_for('logout') }}";
-        // 你可以選擇性地在這裡也呼叫 supabase.auth.signOut()
-        // 以確保前端 Supabase 狀態也清除，但 Flask session 清除是關鍵
-        // supabase.auth.signOut().then(() => console.log("Supabase client session signed out."));
       });
     }
 
     // 歷史紀錄按鈕 (如果存在)
     const historyButton = document.getElementById('history-button');
     if (historyButton) {
-      // historyButton.style.display = 'none'; // Hide it if always showing history
-      // Or repurpose it, e.g., to toggle sidebar visibility (more complex)
       historyButton.addEventListener("click", () => {
-          // If you still have a /history route that re-renders index.html:
-          // window.location.href = "{{ url_for('history_page_explicit') }}";
-          // But if index always shows history, this button might not be needed.
-          // For now, let's assume it's removed or hidden via CSS/JS.
           console.log("History button clicked - functionality may need review.");
       });
     }
 
-    // 原來的 checkAuth 函數，其角色更多是輔助 UI，
-    // 因為頁面初始狀態由 Flask 模板變數決定。
-    // 如果你希望在不同分頁登入後，此分頁能動態更新 UI，可以保留並調整。
-    /*
-    async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser();
-      // 這個函數現在更多是用來監聽 Supabase 狀態變化，
-      // 但主要的登入/登出流程由 Flask 控制。
-      // 例如，如果用戶在另一個標籤頁透過 Supabase JS 登出，
-      // 你可以用 onAuthStateChange 來更新此頁面的 UI。
-      // 但核心的 Flask session 狀態不會因此改變，除非用戶訪問 Flask 的 /logout。
-    }
-    // supabase.auth.onAuthStateChange((event, session) => {
-    //   console.log('Supabase Auth State Change:', event, session);
-    //   // 根據 event 和 session 更新前端 UI，例如重新渲染 auth-status-area
-    //   // 但要小心，這不應覆蓋 Flask 的權威狀態。
-    //   // 如果 event 是 SIGNED_OUT，並且 Flask session 可能還在，
-    //   // 這裡的 UI 更新後，用戶點擊需要認證的操作仍會被 Flask 攔截。
-    //   // 最穩妥的方式是讓所有登入登出操作都經過 Flask。
-    // });
-    // checkAuth(); // 初始檢查可以保留，但優先級低於 Flask 渲染的狀態
-    */
+    const themeToggleButton = document.getElementById('theme-toggle-button');
+const bodyElement = document.body; // 或者 document.documentElement 獲取 <html> 標籤
 
+// 函數：應用主題
+function applyTheme(theme) {
+    bodyElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme); // 將偏好儲存到 localStorage
+    // 更新按鈕圖示 (雖然 CSS 會處理，但 JS 也可以輔助確保狀態正確)
+    const sunIcon = themeToggleButton.querySelector('.sun-icon');
+    const moonIcon = themeToggleButton.querySelector('.moon-icon');
+    if (theme === 'dark') {
+        if (sunIcon) sunIcon.style.display = 'none';
+        if (moonIcon) moonIcon.style.display = 'inline';
+    } else {
+        if (sunIcon) sunIcon.style.display = 'inline';
+        if (moonIcon) moonIcon.style.display = 'none';
+    }
+    console.log("Theme applied:", theme);
+}
+
+// 函數：切換主題
+function toggleTheme() {
+    const currentTheme = bodyElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(newTheme);
+}
+
+// 事件監聽器：點擊按鈕時切換主題
+if (themeToggleButton) {
+    themeToggleButton.addEventListener('click', toggleTheme);
+}
+
+// 初始化主題：檢查 localStorage 中是否有保存的偏好，否則默認為淺色
+document.addEventListener('DOMContentLoaded', () => {
+    // ... 你現有的 DOMContentLoaded 內容 (例如 formatAllLocalTimes) ...
+
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme) {
+        applyTheme(savedTheme);
+    } else if (prefersDark) {
+        // 如果用戶系統偏好深色且沒有保存設置，則默認為深色 (可選)
+        // applyTheme('dark');
+        applyTheme('light'); // 或者始終默認為淺色
+    } else {
+        applyTheme('light'); // 默認為淺色主題
+    }
+});
+
+// ⭐⭐ 新增：滾動按鈕相關的 JavaScript ⭐⭐
+const scrollToTopBtn = document.getElementById('scroll-to-top-btn');
+const scrollToBottomBtn = document.getElementById('scroll-to-bottom-btn');
+// 我們需要滾動的是哪個元素？通常是 window，或者某個特定的可滾動容器。
+// 在你的佈局中，`#main-content` 是主要的滾動區域。
+// 但如果側邊欄固定，且主內容溢出視窗，則滾動的目標是 window/document。
+// 為了通用性，我們先假設是整個頁面的滾動。
+// const scrollableElement = document.documentElement; // 或者 document.body，或者 window
+
+// 監聽窗口滾動事件，以控制“滾動到頂部”按鈕的顯示/隱藏
+window.onscroll = function() {
+    scrollFunction();
+};
+
+function scrollFunction() {
+    // 當用戶向下滾動超過 200px (可調整) 時，顯示“滾動到頂部”按鈕
+    if (document.body.scrollTop > 200 || document.documentElement.scrollTop > 200) {
+        if (scrollToTopBtn) scrollToTopBtn.style.display = "flex"; // 改為 flex 以匹配 CSS
+    } else {
+        if (scrollToTopBtn) scrollToTopBtn.style.display = "none";
+    }
+
+    // 可選：當滾動到底部時隱藏“滾動到底部”按鈕
+    if (scrollToBottomBtn) {
+        // (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5 // 接近底部5px
+        // 檢查是否滾動到底部 (考慮一些容差)
+        const nearBottom = (window.innerHeight + window.pageYOffset) >= document.documentElement.scrollHeight ;
+        if (nearBottom) {
+            scrollToBottomBtn.style.display = "none";
+        } else {
+            scrollToBottomBtn.style.display = "flex"; // 改為 flex
+        }
+    }
+}
+
+// 為“滾動到頂部”按鈕添加點擊事件監聽器
+if (scrollToTopBtn) {
+    scrollToTopBtn.addEventListener('click', function() {
+        // 平滑滾動到頁面頂部
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth' // 平滑滾動效果
+        });
+        // document.body.scrollTop = 0; // For Safari
+        // document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+    });
+}
+
+// 為“滾動到底部”按鈕添加點擊事件監聽器
+if (scrollToBottomBtn) {
+    scrollToBottomBtn.addEventListener('click', function() {
+        // 平滑滾動到頁面底部
+        window.scrollTo({
+            top: document.documentElement.scrollHeight, // 滾動到文檔總高度
+            behavior: 'smooth'
+        });
+    });
+}
   </script>
 </body>
 

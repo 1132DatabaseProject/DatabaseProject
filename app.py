@@ -13,6 +13,7 @@ import secrets
 import requests
 from dateutil import parser
 
+
 # Google Gemini
 import google.generativeai as genai
 
@@ -34,7 +35,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # wkhtmltopdf路徑
-WKHTMLTOPDF_PATH = r"D:\Programmed Files\Python\TEST\wkhtmltox\bin\wkhtmltopdf.exe"
+WKHTMLTOPDF_PATH = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
 pdfkit_config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
 
 # HTML模板
@@ -45,48 +46,96 @@ HTML_TEMPLATE = """
 <meta charset="UTF-8">
 <title>英文寫作分析報告</title>
 <style>
-    body {{
+    /* 
+       關鍵：所有針對報告內容的樣式，都必須以 .pdf-report-view 作為前綴。
+       這樣，當這段 HTML 被插入到 index.html 時，這些樣式只會影響
+       <div class="pdf-report-view"> 內部的元素，不會污染外部頁面。
+    */
+
+    /* 針對 .pdf-report-view 容器本身的基礎樣式 (可選，主要用於PDF) */
+    .pdf-report-view {{
         font-family: "Times New Roman", serif;
-        margin: 50px;
+        margin: 20px; /* 這是指在 PDF 頁面中的邊距 */
         line-height: 1.8;
-        font-size: 16px;
+        font-size: 14pt; /* 調整為 pt 以便 PDF 渲染 */
+        color: #333;
     }}
-    h1 {{
+
+    /* 報告標題 */
+    .pdf-report-view h1 {{
         text-align: center;
-        font-size: 28px;
+        font-size: 20pt;
         margin-bottom: 40px;
+        color: #111;
     }}
-    h2 {{
-        font-size: 22px;
+
+    /* 各部分標題 */
+    .pdf-report-view h2 {{
+        font-size: 14pt;
         color: #2c3e50;
         margin-top: 30px;
         margin-bottom: 10px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 5px;
     }}
-    .timestamp {{
+
+    .pdf-report-view .timestamp {{
         text-align: right;
-        font-size: 12px;
+        font-size: 10pt;
         color: gray;
-        margin-bottom: 30px;
+        margin-bottom: 20px;
     }}
-    .highlight {{
+
+    .pdf-report-view .highlight {{
         color: red;
-        font-weight: bold;
+        /* 根據你的 Gemini Prompt，這裡不應該是 font-weight: bold; */
+        /* 如果 Gemini 返回的 HTML 中 .highlight 已經包含了粗體，而你不想，
+           可以在這裡強制取消：font-weight: normal !important;
+           但最好是讓 Gemini 不要輸出粗體。
+        */
     }}
-    p {{
+
+    .pdf-report-view p {{
         text-indent: 2em;
+        font-size: 12pt;
         margin-top: 10px;
+        margin-bottom: 8px;
+        text-align: justify;
     }}
-    .error-block {{
+
+    .pdf-report-view .error-block {{ /* 如果有的話 */
         margin-top: 10px;
+        padding: 10px;
+        background-color: #ffeeee;
+        border-left: 3px solid red;
     }}
+
+    /* 如果還有其他針對 ul, ol, li 等標籤的樣式，也要加上 .pdf-report-view 前綴 */
+    .pdf-report-view ul, 
+    .pdf-report-view ol {{
+        padding-left: 40px; /* PDF 中列表的縮進 */
+    }}
+
+    .pdf-report-view li {{
+        margin-bottom: 5px; /* PDF 中列表項的間距 */
+    }}
+
 </style>
 </head>
 <body>
-<h1>英文寫作分析報告</h1>
-<div class="timestamp">生成時間：{timestamp}</div>
-{content}
+    <!-- 
+        關鍵：將所有實際的報告內容包裹在這個帶有 'pdf-report-view' class 的 div 中。
+        注意，原始的 <h1>英文寫作分析報告</h1> 和 <div class="timestamp">...</div>
+        現在也移到了這個包裹 div 的內部，這樣它們也會受到 .pdf-report-view 前綴樣式的控制。
+    -->
+    <div class="pdf-report-view">
+        <h1>英文寫作分析報告</h1>
+        <div class="timestamp">生成時間：{timestamp}</div>
+        {content}
+    </div>
 </body>
 </html>
+
 """
 
 # 區塊模板
@@ -179,73 +228,79 @@ def index():
     user_logged_in = 'user_email' in session
     user_email = session.get('user_email')
 
+    if 'user_email' not in session:
+        return redirect(url_for('login'))
     if request.method == "POST":
+
         # --- POST Request Logic ---
         if not user_logged_in:
             app.logger.warning("POST attempt to / by non-logged-in user.")
             return jsonify({"error": "請先登入", "login_required": True}), 401
-
-        # user_email is already set from above if user_logged_in is True
-        app.logger.info(f"POST request to / by user: {user_email}")
-        app.logger.debug(f"Flask request.form: {request.form}")
-        app.logger.debug(f"Flask request.files: {request.files}")
-
-        input_text = request.form.get("text_content", "")
-        uploaded_file = request.files.get("file")
-
-        app.logger.debug(f"Received input_text: '{input_text}'")
-        if uploaded_file and uploaded_file.filename: # Check filename here too
-            app.logger.debug(f"Received uploaded_file: '{uploaded_file.filename}'")
         else:
-            app.logger.debug("No valid uploaded file received.")
-            uploaded_file = None # Ensure it's None if not valid
+            # user_email is already set from above if user_logged_in is True
+            app.logger.info(f"POST request to / by user: {user_email}")
+            app.logger.debug(f"Flask request.form: {request.form}")
+            app.logger.debug(f"Flask request.files: {request.files}")
 
-        is_input_empty = not input_text.strip()
-        is_file_empty = not (uploaded_file and uploaded_file.filename)
+            input_text = request.form.get("text_content", "")
+            uploaded_file = request.files.get("file")
 
-        app.logger.debug(f"Is input_text empty? {is_input_empty}")
-        app.logger.debug(f"Is uploaded_file empty? {is_file_empty}")
-
-        if is_input_empty and is_file_empty:
-            app.logger.info("Both text and file are empty. Returning JSON error.")
-            return jsonify({"result": "請輸入文章內容或上傳檔案。"})
-
-        # File processing should happen *after* checking if input_text itself is sufficient
-        if uploaded_file: # No need to check filename.endswith(".txt") here if we already did is_file_empty
-            filename = secure_filename(uploaded_file.filename)
-            if filename.endswith(".txt"): # Check extension here
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                try:
-                    uploaded_file.save(filepath)
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        input_text = f.read() # Overwrites input_text if file is provided
-                    app.logger.info(f"Read content from uploaded file: {filename}")
-                except Exception as e:
-                    app.logger.error(f"Error saving or reading uploaded file {filename}: {e}")
-                    return jsonify({"error": f"處理上傳檔案時發生錯誤: {e}"}), 500
+            app.logger.debug(f"Received input_text: '{input_text}'")
+            if uploaded_file and uploaded_file.filename: # Check filename here too
+                app.logger.debug(f"Received uploaded_file: '{uploaded_file.filename}'")
             else:
-                app.logger.warning(f"Uploaded file {filename} is not a .txt file.")
-                # Decide how to handle non-txt files if input_text was also empty.
-                # For now, if it's not a .txt and input_text was empty, it would have already returned above.
-                # If input_text had content, this non-txt file is ignored.
+                app.logger.debug("No valid uploaded file received.")
+                uploaded_file = None # Ensure it's None if not valid
 
-        # Final check if input_text (possibly from file) is now empty
-        if not input_text.strip():
-            app.logger.info("After potential file read, input_text is still empty.")
-            return jsonify({"result": "請輸入文章內容或上傳檔案。"})
+            is_input_empty = not input_text.strip()
+            is_file_empty = not (uploaded_file and uploaded_file.filename)
 
-        try:
-            app.logger.info(f"Processing text for user {user_email}. Text length: {len(input_text)}")
-            analysis_result_data = asyncio.run(process_text(input_text, user_email))
-            session['last_analysis_html'] = analysis_result_data['html_content']
-            session['last_analysis_pdf_path'] = analysis_result_data['pdf_path']
-            return jsonify({
-                "result": analysis_result_data['html_content'],
-                'pdf_url': url_for('download_specific_pdf', filename=os.path.basename(analysis_result_data['pdf_path']))
-            })
-        except Exception as e:
-            app.logger.error(f"Error during processing text for user {user_email}: {e}", exc_info=True)
-            return jsonify({"error": f"分析處理過程中發生錯誤: {e}"}), 500
+            app.logger.debug(f"Is input_text empty? {is_input_empty}")
+            app.logger.debug(f"Is uploaded_file empty? {is_file_empty}")
+
+            if is_input_empty and is_file_empty:
+                app.logger.info("Both text and file are empty. Returning JSON error.")
+                return jsonify({"result": "請輸入文章內容或上傳檔案。"})
+
+            # File processing should happen *after* checking if input_text itself is sufficient
+            if uploaded_file: # No need to check filename.endswith(".txt") here if we already did is_file_empty
+                filename = secure_filename(uploaded_file.filename)
+                if filename.endswith(".txt"): # Check extension here
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    try:
+                        uploaded_file.save(filepath)
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            input_text = f.read() # Overwrites input_text if file is provided
+                        app.logger.info(f"Read content from uploaded file: {filename}")
+                    except Exception as e:
+                        app.logger.error(f"Error saving or reading uploaded file {filename}: {e}")
+                        return jsonify({"error": f"處理上傳檔案時發生錯誤: {e}"}), 500
+                else:
+                    app.logger.warning(f"Uploaded file {filename} is not a .txt file.")
+                    # Decide how to handle non-txt files if input_text was also empty.
+                    # For now, if it's not a .txt and input_text was empty, it would have already returned above.
+                    # If input_text had content, this non-txt file is ignored.
+
+            # Final check if input_text (possibly from file) is now empty
+            if not input_text.strip():
+                app.logger.info("After potential file read, input_text is still empty.")
+                return jsonify({"result": "請輸入文章內容或上傳檔案。"})
+
+            try:
+                app.logger.info(f"Processing text for user {user_email}. Text length: {len(input_text)}")
+                analysis_result_data = asyncio.run(process_text(input_text, user_email))
+                #session['last_analysis_html'] = analysis_result_data['html_for_result_tab']
+                #session['last_analysis_pdf_path'] = analysis_result_data['pdf_url']
+                return jsonify({
+                    "html_for_result_tab": analysis_result_data.get("html_for_result_tab"),
+                    "html_for_quill_editor": analysis_result_data.get("html_for_quill_editor"),
+                    'pdf_url': analysis_result_data.get('pdf_url') # 假設 pdf_url 是正確的
+                    #"result": analysis_result_data['html_for_result_tab'],
+                    #'pdf_url': url_for('download_specific_pdf', filename=os.path.basename(analysis_result_data['pdf_path']))
+                })
+            except Exception as e:
+                app.logger.error(f"Error during processing text for user {user_email}: {e}", exc_info=True)
+                return jsonify({"error": f"分析處理過程中發生錯誤: {e}"}), 500
 
     else: # --- GET Request Logic ---
         history_data_for_template = []
@@ -276,12 +331,7 @@ def index():
                                user_email=user_email,
                                history_data=history_data_for_template)
 
-# Remove or modify the /history route
-# Option 1: Remove it entirely if the index page always shows history.
-# Option 2: Keep it as a way to explicitly "refresh" or if you want a dedicated history URL,
-#           but ensure it also passes the same `history_data` to index.html.
-# For this request, let's assume we might remove it or it becomes less critical.
-# If you keep it:
+
 @app.route("/history") # This route might now be redundant
 def history_page_explicit(): # Renamed to avoid conflict if you merge
     if 'user_email' not in session:
@@ -373,6 +423,34 @@ def logout():
     print("User logged out. Flask session cleared.")
     return redirect(url_for('login')) # 或跳轉到主頁
 
+from bs4 import BeautifulSoup # 確保已安裝 pip install beautifulsoup4
+
+# HTML_TEMPLATE 和 SECTION_TEMPLATE 保持你提供的版本 (帶 .pdf-report-view 前綴)
+
+# generate_html_report 函數也保持你提供的版本，它返回完整的 HTML 字符串
+
+def extract_quill_content_from_full_html(full_html_string):
+    """
+    從完整的 HTML 報告字符串中提取 <div class="pdf-report-view"> 的 innerHTML。
+    """
+    if not full_html_string:
+        return ""
+    try:
+        soup = BeautifulSoup(full_html_string, 'html.parser')
+        report_view_div = soup.find('div', class_='pdf-report-view')
+        if report_view_div:
+            return report_view_div.decode_contents() # 返回 div 內部的 HTML
+        else:
+            # 如果找不到 .pdf-report-view，嘗試從 body 提取（作為後備）
+            body_tag = soup.body
+            if body_tag:
+                print("警告: 未在完整HTML中找到 'div.pdf-report-view'，嘗試返回 body 內容給 Quill。")
+                return body_tag.decode_contents()
+            print("警告: 未在完整HTML中找到 'div.pdf-report-view' 或 body 標籤。")
+            return "" # 或者返回 full_html_string 本身讓前端調試
+    except Exception as e:
+        print(f"從完整HTML提取Quill內容時發生錯誤: {e}")
+        return "" # 或者 full_html_string
 
 async def process_text(text_content, user_email):
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
@@ -401,25 +479,32 @@ async def process_text(text_content, user_email):
         # sample_article_text = "範例文章生成失敗。" # 給一個預設值
 
 
-    # 注意: 你的 analysis_history 表儲存的是 analysis_result TEXT NOT NULL
-    # 這裡的 analysis_text_from_gemini 是 Gemini 的原始回應，可能不是最終的 HTML
-    # 你需要決定儲存到資料庫的是 Gemini 的原始分析文字，還是處理過的 HTML
-    # 假設我們儲存 Gemini 的原始分析文字 (不含範例文章和 HTML 結構)
-    # 如果要儲存完整報告的HTML，則 analysis_result 欄位需要改為儲存 html_content
+    # 1. 生成完整的 HTML (用於 PDF 和 #result div 的直接顯示)
+    full_html_content = generate_html_report(analysis_text_from_gemini, sample_article_text)
 
-    # 生成 HTML 報告 (包含範例文章)
-    html_content_for_display_and_pdf = generate_html_report(analysis_text_from_gemini, sample_article_text)
+    # 2. 從完整 HTML 中提取核心內容給 Quill
+    core_html_for_quill = extract_quill_content_from_full_html(full_html_content)
+    if not core_html_for_quill:
+         print(f"警告:未能從新分析的完整HTML中提取Quill的核心內容。完整HTML:{full_html_content[:300]}...")
+
+    timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
+    base_filename = f"analysis_result_{timestamp_str}"
+    # ⭐ pdf_output_path 現在在這裡定義
+    pdf_output_path = os.path.join(app.config.get('STATIC_DOWNLOADS_FOLDER', os.path.join(app.root_path, 'static', 'downloads')), f"{base_filename}.pdf")
+    # 確保目錄存在 (雖然下面轉 PDF 前也會做，但提前做無害)
+    os.makedirs(os.path.dirname(pdf_output_path), exist_ok=True)
 
     # 儲存到 Supabase (儲存原始分析文字，不含範例文章)
     try:
+        pdf_filename_for_db = os.path.basename(pdf_output_path)
         insert_data = {
             'user_email': user_email,
             'original_text': text_content,
             'analysis_result': analysis_text_from_gemini, # Gemini's core analysis
-            'report_html': html_content_for_display_and_pdf, # <<<< ADD THIS
-            # 'sample_article': sample_article_text, # If you also want to store this
+            'report_html': full_html_content, # <<<< ADD THIS
+            'pdf_filename': os.path.basename(pdf_output_path)
+            
         }
-        # If you add 'sample_article', make sure the column exists in Supabase
         
         # Supabase v2+ style
         response = supabase.from_('analysis_history').insert(insert_data).execute()
@@ -432,27 +517,12 @@ async def process_text(text_content, user_email):
                 print(f"儲存資料到 Supabase 可能失敗或無返回資料。Response: {response}")
 
     except Exception as e:
-        print(f"儲存資料到 Supabase 時發生異常: {e}")
+        import sys
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(f"儲存資料到 Supabase 時發生異常: {e} (在文件 {fname} 的第 {exc_tb.tb_lineno} 行)")
         # 這裡可以決定是否因為DB儲存失敗而中斷整個請求
 
-    # 為本次請求生成唯一的檔名，避免多人同時使用時覆蓋
-    timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    # 可以考慮加上 user_id 或 session_id 來進一步區分
-    # user_specific_id = session.get('user_id', 'anonymous') # 假設 user_id 存在 session
-    # base_filename = f"analysis_result_{user_specific_id}_{timestamp_str}"
-    base_filename = f"analysis_result_{timestamp_str}"
-
-
-    # 儲存HTML (這個HTML主要用於生成PDF，也可以考慮直接用html_content_for_display_and_pdf字串生成PDF)
-    # html_output_path = os.path.join("static", "downloads", f"{base_filename}.html")
-    # os.makedirs(os.path.dirname(html_output_path), exist_ok=True)
-    # with open(html_output_path, "w", encoding="utf-8") as f:
-    #     f.write(html_content_for_display_and_pdf)
-    # print(f"已將分析結果儲存為HTML: {html_output_path}")
-
-    # 轉成PDF
-    pdf_output_path = os.path.join("static", "downloads", f"{base_filename}.pdf")
-    os.makedirs(os.path.dirname(pdf_output_path), exist_ok=True)
     try:
         # pdfkit.from_file(html_output_path, pdf_output_path, configuration=pdfkit_config)
         # 直接從字串生成，避免寫入臨時HTML檔案
@@ -460,7 +530,7 @@ async def process_text(text_content, user_email):
             'encoding': "UTF-8",
             'enable-local-file-access': None # 如果HTML中有本地資源（CSS, JS, 圖片）需要此選項
         }
-        pdfkit.from_string(html_content_for_display_and_pdf, pdf_output_path, configuration=pdfkit_config, options=options)
+        pdfkit.from_string(full_html_content, pdf_output_path, configuration=pdfkit_config, options=options)
         print(f"已將分析結果轉換成PDF: {pdf_output_path}")
     except Exception as e:
         print(f"PDF生成失敗: {e}")
@@ -469,8 +539,9 @@ async def process_text(text_content, user_email):
 
 
     return {
-        "html_content": html_content_for_display_and_pdf,
-        "pdf_path": pdf_output_path # 返回PDF的實際路徑
+        "html_for_result_tab": full_html_content,    # ⭐ 給 #result div
+        "html_for_quill_editor": core_html_for_quill, # ⭐ 給 Quill
+        "pdf_url": url_for('download_specific_pdf', filename=os.path.basename(pdf_output_path))
     }
 
 # 新的下載路由，接受檔名作為參數
@@ -594,17 +665,31 @@ def get_history_item(item_id):
     try:
         # Ensure the item belongs to the logged-in user for security
         # Using single() is good. It will error if not exactly one row.
-        response = supabase.from_('analysis_history').select('id, original_text, report_html').eq('id', item_id).eq('user_email', user_email).single().execute()
-        
+        #response = supabase.from_('analysis_history').select('id, original_text, report_html').eq('id', item_id).eq('user_email', user_email).single().execute()
+        response = supabase.from_('analysis_history').select('id, original_text, report_html', 'pdf_filename').eq('id', item_id).eq('user_email', user_email).single().execute()
         # For supabase-py v2+, response.data should be the way
         record_data = response.data 
         app.logger.debug(f"Supabase response for item {item_id}: {response}") # Log the whole response for inspection
 
         if record_data:
+            full_html_from_db = record_data.get("report_html") # 從DB獲取完整HTML
+            core_html_for_quill_history = extract_quill_content_from_full_html(full_html_from_db)
+            # 假設我們為歷史記錄也構建或獲取 pdf_url (這部分需要你根據實際情況實現)
+            pdf_url_for_history = None
+            example_filename_from_db = record_data.get("pdf_filename") # 如果你在DB存了檔名
+            if example_filename_from_db:
+                pdf_url_for_history = url_for('download_specific_pdf', filename=example_filename_from_db)
+            
+            if not core_html_for_quill_history:
+                print(f"警告:未能從歷史記錄 (ID:{item_id}) 的完整HTML中提取Quill的核心內容。完整HTML:{full_html_from_db[:300]}...")
+
             app.logger.info(f"Found history item {item_id} for user {user_email}. Original text length: {len(record_data.get('original_text', ''))}, Report HTML length: {len(record_data.get('report_html', ''))}")
             return jsonify({
                 "original_text": record_data.get("original_text"),
-                "analysis_result_html": record_data.get("report_html"), # This should now have the full HTML
+                "html_for_result_tab": full_html_from_db,       # ⭐ 給 #result div
+                "html_for_quill_editor": core_html_for_quill_history, # ⭐ 給 Quill
+                "pdf_url": pdf_url_for_history # ⭐ 如果歷史記錄也支持下載原始 PDF
+                #"analysis_result_html": record_data.get("report_html"), # This should now have the full HTML
                 # "pdf_url": "..." # If you decide to store and retrieve PDF path/URL
             })
         else:
@@ -628,8 +713,50 @@ def get_history_item(item_id):
              return jsonify({"error": "Item not found"}), 404
         return jsonify({"error": "Server error while fetching history item"}), 500
 
+@app.route("/delete_history_item/<string:item_id>", methods=["DELETE"]) # 使用 DELETE HTTP 方法更符合 RESTful 風格
+def delete_history_item_route(item_id): # 函數名與之前的 get_history_item 區分
+    if 'user_email' not in session:
+        app.logger.warning(f"Unauthorized DELETE attempt for history item {item_id} - User not logged in.")
+        return jsonify({"success": False, "error": "使用者未認證，請先登入。"}), 401
+
+    user_email = session['user_email']
+    app.logger.info(f"User '{user_email}' attempting to delete history item ID: {item_id}")
+
+    try:
+        # 執行刪除操作，確保只刪除屬於該用戶的記錄
+        response = supabase.from_('analysis_history') \
+                           .delete() \
+                           .eq('id', item_id) \
+                           .eq('user_email', user_email) \
+                           .execute()
+
+        # 檢查 Supabase 返回的響應
+        # supabase-py v2+ delete 操作成功時，data 可能是個列表 (包含被刪除的記錄)，或者為空
+        # 如果記錄不存在或不屬於該用戶，則 data 可能為空，且 count 為 0 (如果可用)
+        
+        app.logger.debug(f"Supabase delete response for item {item_id}: {response}")
+
+        if hasattr(response, 'error') and response.error:
+            app.logger.error(f"Supabase error deleting history item {item_id} for user {user_email}: {response.error}")
+            return jsonify({"success": False, "error": "刪除歷史紀錄時發生資料庫錯誤。"}), 500
+        
+        # 檢查是否真的有記錄被刪除
+        # Supabase delete 通常在成功時 data 是一個包含被刪除記錄的列表（即使只有一條）
+        # 如果沒有匹配的記錄被刪除，data 可能是空列表
+        if response.data: # 或者檢查 response.count (如果適用)
+            app.logger.info(f"Successfully deleted history item {item_id} for user {user_email}.")
+            return jsonify({"success": True, "message": "歷史紀錄已成功刪除。"}), 200
+        else:
+            app.logger.warning(f"History item {item_id} not found or not owned by user {user_email} for deletion.")
+            # 即使記錄不存在，從客戶端角度看，操作也算“完成”了，只是沒有實際刪除
+            # 可以返回成功，或者返回一個特定的“未找到”狀態
+            return jsonify({"success": False, "error": "找不到要刪除的歷史紀錄，或您沒有權限。"}), 404
+
+    except Exception as e:
+        app.logger.error(f"Exception deleting history item {item_id} for user {user_email}: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"刪除歷史紀錄時發生伺服器內部錯誤: {str(e)}"}), 500
+
 # 啟動Flask
 if __name__ == "__main__":
     generated_html_content = None  # 初始化全域變數
     app.run(debug=True)
-

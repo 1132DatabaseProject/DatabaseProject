@@ -1,41 +1,85 @@
-body {
-  font-family: 'Helvetica Neue', Arial, sans-serif;
-  background-color: #f2f6fa;
-  margin: 0; /* CRITICAL: Remove default body margin */
-  /* padding: 15px;  REMOVE padding from body if using flex for main layout */
-  /* padding-top: 30px; REMOVE padding from body */
-  display: flex; /*  <--- ADD THIS! */
-  min-height: 100vh; /* Ensure body takes at least full viewport height */
-}
-  
-/* Sidebar Styling */
-#sidebar {
-  width: 280px; /* Width of the sidebar */
-  background-color: #f0f0f0; /* Light grey background */
-  padding: 20px;
-  border-right: 1px solid #ccc;
-  box-sizing: border-box; /* Include padding and border in the element's total width and height */
-  height: 100vh; /* Make sidebar full viewport height */
-  overflow-y: auto; /* Add scroll if content exceeds height */
-  flex-shrink: 0; /* Prevent sidebar from shrinking if main content is too wide */
+/* style.css */
+:root {
+  /* 淺色模式 (雪白模式 - 你的當前模式) */
+  --bg-primary: #f7f9fc;         /* 主背景色 (更淺的灰色) */
+  --bg-secondary: #fff;          /* 次要背景色 (卡片、側邊欄等) */
+  --bg-accent: #e9f5ff;          /* 強調背景色 (如 hover) */
+  --text-primary: #333;          /* 主要文字顏色 */
+  --text-secondary: #555;        /* 次要文字顏色 */
+  --text-accent: #007bff;         /* 強調文字/鏈接顏色 (使用你的主色調) */
+  --border-primary: #ddd;        /* 主要邊框顏色 */
+  --border-secondary: #eee;      /* 次要邊框顏色 */
+  --shadow-soft: 0 2px 8px rgba(0,0,0,0.1);
+  --shadow-medium: 0 4px 12px rgba(0,0,0,0.1);
+
+  /* 通用顏色 */
+  --color-primary: #3498db;
+  --color-primary-hover: #1b4279;
+  --color-secondary: #539ac9;
+  --color-secondary-hover: #244678;
+  --color-danger: #e74c3c;
+  --color-danger-hover: #c0392b;
+  --color-success: #5988e6;      /* 例如下載按鈕的綠色 */
+  --color-success-hover: #4448ac;
+
+  /* 字體和圓角 */
+  --font-family-sans-serif: 'Helvetica Neue', Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --border-radius-small: 4px;
+  --border-radius-medium: 8px;
+
+  /* 過渡效果 */
+  --transition-speed: 0.3s;
 }
 
-.history-item-summary {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 240px; /* Adjust based on sidebar width minus padding */
-    display: block; /* Crucial for ellipsis to work */
-    font-size: 0.85em;
-    color: #555;
-    margin-top: 4px; /* Some space from the timestamp */
+/* 深色模式的變數將通過 [data-theme="dark"] 來覆蓋 */
+[data-theme="dark"] {
+  --bg-primary: #262636;         /* 深色主背景 */
+  --bg-secondary: #404145;       /* 深色次背景 (卡片等) */
+  --bg-accent: #1c2e44;          /* 深色強調背景 */
+  --text-primary: #f1ebeb;       /* 深色模式主要文字 */
+  --text-secondary: #dde6ee;     /* 深色模式次要文字 */
+  --text-accent: #84a7dc;         /* 深色模式強調文字 (可以是你淺色模式的主藍色變亮一些) */
+  --border-primary: #727d8c;     /* 深色模式主要邊框 */
+  --border-secondary: #5c6b85;   /* 深色模式次要邊框 */
+  --shadow-soft: 0 2px 8px rgba(0,0,0,0.3); /* 深色模式陰影可以更明顯或調整顏色 */
+  --shadow-medium: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+body {
+  font-family: var(--font-family-sans-serif);
+  background-color: var(--bg-primary); /* 使用變數 */
+  margin: 0;
+  display: flex;
+  min-height: 100vh;
+  color: var(--text-primary); /* 使用變數 */
+  font-size: 16px;
+  line-height: 1.6;
+  transition: background-color var(--transition-speed), color var(--transition-speed); /* 添加平滑過渡 */
+}
+
+/* --- 修改你現有的 CSS 規則，將硬編碼的顏色替換為 CSS 變數 --- */
+
+/* Sidebar Styling */
+#sidebar {
+  background-color: var(--bg-secondary); /* 改用變數 */
+  border-right: 1px solid var(--border-primary); /* 改用變數 */
+  box-shadow: var(--shadow-soft);
+  width: 300px;
+  padding: 25px;
+  border-right: 1px solid var(--border-color);
+  box-sizing: border-box;
+  height: 100vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+  transition: background-color var(--transition-speed), border-color var(--transition-speed);
 }
 
 #sidebar h2 {
+  color: var(--text-primary); /* 改用變數 */
+  border-bottom: 1.5px solid var(--border-secondary); /* 改用變數 */
   margin-top: 0;
-  color: #333;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 10px;
+  padding-bottom: 15px;
+  font-size: 1.4em;
 }
 
 #sidebar ul {
@@ -44,299 +88,589 @@ body {
   margin: 0;
 }
 
-#sidebar li {
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px dotted #ddd;
+#sidebar ul li.history-item { /* 直接對 .history-item 應用樣式 */
+  padding: 15px 10px; /* 調整 padding */
+  margin-bottom: 10px; /* 條目間距 */
+  border-radius: var(--border-radius-small);
+  transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  cursor: pointer;
+  border: 1px solid transparent; /* 預留邊框位置 */
 }
 
-#sidebar li:last-child {
-  border-bottom: none; /* Remove border from the last item */
-  margin-bottom: 0;
-}
-
-#sidebar p {
-  margin: 5px 0;
-  font-size: 0.9em;
-  word-wrap: break-word; /* Wrap long text */
-}
-
-#sidebar strong {
-  color: #555;
-}
-
-#sidebar a {
-  color: #007bff;
-  text-decoration: none;
-}
-#sidebar a:hover {
-  text-decoration: underline;
+#sidebar ul li.history-item:hover {
+  background-color: var(--bg-accent); /* 改用變數 */
+  border-left: 3px solid var(--color-primary); /* 使用主色調 */
 }
 
 #sidebar ul li.active-history-item {
-    background-color: #cce5ff; /* A light blue, for example */
-    font-weight: bold; /* Make text bold */
+  background-color: #bddff6; /* 或一個特定的 active 背景色變數 */
+  font-weight: bold;
+  color: var(--bg-secondary); /* 反襯文字顏色 */
+  border-left: 3px solid var(--color-primary);
+  box-shadow: var(--shadow-soft);
+}
+/* 深色模式下 active item 的特殊處理 */
+[data-theme="dark"] #sidebar ul li.active-history-item {
+  background-color: var(--color-primary);
+  color: var(--text-primary); /* 深色模式下用亮色文字 */
+}
+
+
+#sidebar p {
+  margin: 4px 0;
+  font-size: 0.9em;
+  word-wrap: break-word;
+  color: var(--text-primary); /* 或 var(--text-secondary) */
+}
+
+.history-item-summary {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%; /* 相對於父元素寬度 */
+  display: block;
+  font-size: 0.85em;
+  margin-top: 6px;
+  color: var(--text-secondary); /* 改用變數 */
+}
+
+.history-item {
+  position: relative; /* 為了刪除按鈕的絕對定位 (如果需要) */
+  /* ... 你已有的 .history-item 樣式 ... */
+}
+
+.delete-history-btn {
+  position: absolute;
+  top: 25%; /* 調整位置 */
+  right: -12%; /* 調整位置 */
+  background-color: transparent;
+  border: none;
+  color: var(--danger-color, #e74c3c); /* 使用 CSS 變數或直接指定顏色 */
+  font-size: 1.2em; /* 調整圖示大小 */
+  cursor: pointer;
+  padding: 5px;
+  display: none; /* 初始隱藏，懸停時顯示 */
+  border-radius: 50%;
+  line-height: 1; /* 避免圖示垂直對齊問題 */
+}
+
+.history-item:hover .delete-history-btn {
+  display: inline-block; /* 懸停在歷史條目上時顯示刪除按鈕 */
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-history-btn:hover {
+  background-color: rgba(231, 76, 60, 0.1); /* 輕微背景高亮 */
+  color: #c0392b; /* 深一點的紅色 */
+}
+
+.delete-history-btn img {
+  width: 55px;  /* 設置圖片寬度 */
+  height: 55px; /* 設置圖片高度 */
+  display: block; /* 避免圖片下方有多餘空隙 */
+  /* vertical-align: middle; 已被 button 的 flex 佈局處理 */
+}
+
+#sidebar strong {
+  color: var(--text-secondary); /* 改用變數 */
+  font-weight: 600;
+}
+
+#sidebar a {
+  color: var(--text-accent); /* 改用變數 */
+  text-decoration: none;
+  font-weight: 500;
+}
+#sidebar a:hover {
+  text-decoration: underline;
+  color: var(--color-primary-hover); /* 或 var(--text-accent) 的 hover 變體 */
 }
 
 /* Main Content Styling */
 #main-content {
   flex-grow: 1; /* Allow main content to take remaining space */
-  padding: 20px;
+  padding: 30px;
   box-sizing: border-box;
   overflow-y: auto; /* Allow main content to scroll if needed */
 }
 
 .container {
-    max-width: 800px;
-    margin: 50px auto;
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    width: 70%;
+  background: var(--bg-secondary); /* 改用變數 */
+  box-shadow: var(--shadow-medium);
+  max-width: 1500px;
+  margin: 40px auto;
+  margin-top: 50px;
+  padding: 30px 40px;
+  border-radius: 10px;
+  width: 70%;
+  transition: background-color var(--transition-speed);
 }
   
 h1 {
-    text-align: center;
-    color: #34495e;
-    margin-bottom: 30px;
-  }
+  text-align: center;
+  font-size: 2em; /* 調整大小 */
+  margin-bottom: 30px;
+  font-weight: 600;
+  color: var(--text-primary); /* 改用變數 (可以考慮一個更強烈的標題顏色變數) */
+}
   
-  h2{
-    text-align: left;
-    color: #34495e;
-    margin-bottom: 10px;
-  }
-  textarea {
-    width: 95%;
-    padding: 15px;
-    font-size: 16px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    resize: vertical;
-    margin-bottom: 15px;
-  }
-  
-  .upload-section {
-    margin-bottom: 20px;
-    font-size: 14px;
-  }
-  
-  input[type="file"] {
-    margin-top: 10px;
-  }
-  
-  button {
-    background-color: #3498db;
-    color: white;
-    border: none;
-    padding: 12px 25px;
-    border-radius: 8px;
-    font-size: 16px;
-    cursor: pointer;
-    display: block;
-    margin: 0 auto;
-    transition: background-color 0.3s;
-  }
-  
-  button:hover {
-    background-color: #2980b9;
-  }
-  
-  .status {
-    text-align: center;
-    margin-top: 20px;
-    margin-bottom: 20px;
-    font-size: 16px;
-    color: #555;
-  }
-  
-  .result {
-    margin-top: 30px;
-    margin-bottom: 30px;
-    background-color: #fafafa;
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    overflow-wrap: break-word;
-  }
-  
-  .hidden {
-    display: none;
-  }
-  
-  p{
-    text-align:left;
-  }
+h2{
+  color: var(--text-primary); /* 改用變數 */
+  text-align: left;
+  margin-top: 30px; /* 增加 h2 上方間距 */
+  margin-bottom: 15px; /* 增加 h2 下方間距 */
+  font-size: 1.5em;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-secondary); /* 改用變數 */
+}
 
-.download-btn{
-  background-color: #3498db;
-  color: white;
+h3{
+  text-align: center;
+  font-size: 2em; /* 調整大小 */
+  margin-bottom: 30px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+textarea#text_content {
+  width: 100%; /* 佔滿父容器 */
+  box-sizing: border-box; /* padding 和 border 不會增加寬度 */
+  padding: 15px;
+  font-size: 1rem;
+  border-radius: var(--border-radius-medium);
+  resize: vertical;
+  margin-bottom: 20px;
+  min-height: 150px;
+  background-color: var(--bg-secondary); /* 輸入框背景 */
+  color: var(--text-primary); /* 輸入框文字顏色 */
+  border: 1px solid var(--border-primary); /* 改用變數 */
+  transition: border-color var(--transition-speed), box-shadow var(--transition-speed), background-color var(--transition-speed), color var(--transition-speed);
+}
+textarea#text_content:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-hover); /* 用一個半透明的 box-shadow 更好 */
+}
+
+[data-theme="dark"] textarea#text_content:focus {
+  box-shadow: 0 0 0 3px rgba(83, 168, 219, 0.4); /* 深色模式下的 focus 陰影 */
+}
+
+.upload-section {
+  margin-bottom: 25px;
+  font-size: 0.9em;
+  display: flex; /* Flex佈局方便對齊 */
+  align-items: center;
+}
+.upload-section label {
+  margin-right: 10px;
+}
+
+input[type="file"] {
+  font-size: 0.9em;
+}
+
+/* 統一樣式按鈕 */
+button, .button-like {
+  background-color: var(--color-primary);
+  color: var(--bg-secondary); /* 按鈕文字通常與按鈕背景反襯 */
   border: none;
-  padding: 12px 25px;
-  border-radius: 8px;
-  font-size: 16px;
+  padding: 12px 28px; /* 調整 padding */
+  border-radius: var(--border-radius-medium);
+  font-size: 1rem;
+  font-weight: 500; /* 字體稍微加粗 */
   cursor: pointer;
-  display: block;
-  margin: 0 auto;
+  text-align: center;
+  display: inline-block; /* 讓按鈕可以並排 */
+  margin: 5px; /* 增加一些外邊距 */
+  box-shadow: var(--box-shadow-soft);
+  transition: background-color var(--transition-speed), transform var(--transition-speed), box-shadow var(--transition-speed), color var(--transition-speed);
+}
+
+[data-theme="dark"] button, [data-theme="dark"] .button-like {
+    color: var(--text-primary); /* 深色模式下按鈕文字 */
+}
+
+button:hover, .button-like:hover {
+  background-color: var(--color-primary-hover);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
+button:active, .button-like:active {
+  transform: translateY(0px); /* 按下時效果 */
+  box-shadow: var(--box-shadow-soft);
+}
+
+/* 特定按鈕 */
+#analyze-form button[type="submit"] { /* 分析按鈕 */
+  display: block; /* 讓它獨佔一行並居中 */
+  margin: 20px auto 0 auto; /* 上方間距，並水平居中 */
+  min-width: 180px; /* 最小寬度 */
+}
+
+.download-btn, .download-original-pdf-button {
+  background-color: var(--color-success); /* 使用下載成功顏色 */
+  margin-top: 15px;
+}
+.download-btn:hover, .download-original-pdf-button:hover {
+  background-color: var(--color-success-hover);
+}
+  
+.status {
+  text-align: center;
+  margin-top: 25px;
+  margin-bottom: 25px;
+  font-size: 1em;
+  padding: 10px;
+  color: var(--text-secondary);
+  border-radius: var(--border-radius-small);
+  background-color: var(--bg-accent); /* 或一個專門的通知背景色 */
+  border: 1px solid var(--color-primary); /* 或通知邊框色 */
+  transition: background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed);
+}
+.status.error {
+  background-color: rgba(231, 76, 60, 0.1); /* 半透明的危險背景 */
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+  
+.result {
   margin-top: 30px;
-  transition: background-color 0.3s;
+  margin-bottom: 30px;
+  padding: 15px;
+  border-radius: var(--border-radius-medium);
+  background-color: #fff;
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-soft);
+  overflow-wrap: break-word;
+  transition: background-color var(--transition-speed), border-color var(--transition-speed);
 }
 
-.download-btn:hover {
-  background-color: #2980b9;
+.result h2 {
+  margin-top: 10px;
+  font-size: 1.3em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-secondary);
 }
 
-.tabs button {
-  padding: 10px 20px;
-  background-color: #539ac9;
-  border: none;
-  border-radius: 4px 4px 0 0;
-  cursor: pointer;
+.result p {
+  text-indent: 0; /* 取消結果區內 p 的縮排，因為通常是條列式 */
+  text-align: left;
 }
 
-.tabs button:hover {
-  background-color: #144565;
+.result .highlight {
+  color: var(--color-danger); /* highlight 顏色通常固定 */
 }
 
-.tab-content {
-  border: 1px solid #ccc;
-  padding: 20px;
-  border-top: none;
+.hidden {
+  display: none !important; /* 確保 hidden 生效 */
 }
 
+/* Tabs Styling */
 .tabs {
   display: flex;
-  gap: 10px; /* 兩個按鈕之間的間距，可調整 */
-  margin-top: 20px;
+  margin-top: 30px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .tabs button {
-  flex: 1;  /* 讓兩個按鈕寬度平均分配（可選） */
-  padding: 10px 20px;
-  font-size: 16px;
+  flex: 1;
+  padding: 12px 20px;
+  font-size: 1rem;
   cursor: pointer;
+  background-color: transparent; /* 未選中時透明 */
+  border: none; /* 移除預設邊框 */
+  border-bottom: 3px solid transparent;
+  color: var(--text-secondary);
+  border-radius: 0; /* tab 不需要圓角 */
+  margin: 0 5px; /* tab 之間輕微間距 */
+  transition: color 0.2s, border-bottom-color 0.2s;
+  box-shadow: none;
 }
 
-#login-area {
-  position: absolute;
-  display: flex;
-  top: 10px;
+.tabs button:first-child { margin-left: 0; }
+.tabs button:last-child { margin-right: 0; }
+  
+.tabs button.active-tab {
+  color: var(--color-primary);
+  font-weight: 600;
+  border-bottom: 3px solid var(--color-primary);
+}
+
+.tabs button:not(.active-tab):hover {
+  color: var(--color-primary);
+  box-shadow: none;
+  transform: none;
+  background-color: transparent;
+  border-bottom-color: var(--bg-accent); /* 或淺藍色 */
+}
+  
+.tab-content {
+  border: 1px solid var(--border-primary);
+  border-top: none;
+  padding: 25px;
+  background-color: var(--bg-secondary);
+  box-shadow: var(--shadow-soft);
+  border-radius: 0 0 var(--border-radius-medium) var(--border-radius-medium);
+  transition: background-color var(--transition-speed), border-color var(--transition-speed);
+}
+  
+/* Quill Editor Container */
+#editor-container {
+  margin-top: 20px;
+  border-radius: var(--border-radius-medium);
+  border: 1.5px solid var(--border-primary);
+  /* Quill 內部顏色通常由其主題控制，但你可以嘗試覆蓋 */
+  transition: border-color var(--transition-speed);
+}
+
+#editor-container .ql-toolbar {
+  border-top-left-radius: var(--border-radius-medium);
+  border-top-right-radius: var(--border-radius-medium);
+  border-bottom: 1px solid var(--border-primary) !important;
+  background-color: var(--bg-secondary); /* 工具欄背景 */
+  transition: background-color var(--transition-speed), border-color var(--transition-speed);
+}
+
+#editor-container .ql-container {
+  border-bottom-left-radius: var(--border-radius-medium);
+  border-bottom-right-radius: var(--border-radius-medium);
+  min-height: 300px; /* Quill 編輯區最小高度 */
+  background-color: var(--bg-secondary); /* 編輯區背景 */
+  color: var(--text-primary); /* 編輯區文字 */
+  transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+
+/* 深色模式下 Quill 的一些調整 (可能需要更細緻的選擇器) */
+[data-theme="dark"] .ql-snow .ql-stroke {
+    stroke: var(--text-secondary);
+}
+[data-theme="dark"] .ql-snow .ql-fill {
+    fill: var(--text-secondary);
+}
+[data-theme="dark"] .ql-snow .ql-picker-label {
+    color: var(--text-secondary);
+}
+[data-theme="dark"] .ql-snow .ql-picker-options {
+    background-color: var(--bg-primary);
+    border-color: var(--border-primary);
+}
+  
+/* Auth Status Area */
+#auth-status-area {
+  position: fixed; /* 固定在視窗右上角 */
+  top: 15px;
   right: 30px;
-
-
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px 14px;
+  border-radius: var(--border-radius-medium);
+  background-color: var(--bg-secondary);
+  box-shadow: var(--shadow-soft);
+  transition: background-color var(--transition-speed);
+  z-index: 1000;
 }
 
-#login-button {
-  padding: 8px 16px;
-  font-size: 14px;
-  cursor: pointer;
-
+#auth-status-area p {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.9em;
 }
-
+#auth-status-area button {
+  padding: 8px 15px; /* 調整按鈕大小 */
+  font-size: 0.9em;
+  background-color: var(--color-secondary);
+  margin: 0;
+}
+#auth-status-area button:hover {
+  background-color: var(--color-secondary-hover);
+}
 #logout-button {
-  padding: 8px 16px;
-  font-size: 14px;
-  cursor: pointer;
-  background-color: #5392c9;
-  display: inline-block; /* 確保 */
-  margin: 0; /* 重置通用按鈕的 margin */
+  background-color: var(--color-danger);
 }
-
-#logout-button:hover{
-  background-color: #244678;
+#logout-button:hover {
+  background-color: var(--color-danger-hover);
 }
-
-#history-button{
-  padding: 8px 16px;
-  font-size: 14px;
-  cursor: pointer;
-  margin-right: 10px;
-  background-color: #5392c9;
-  display: inline-block; /* 確保 */
-  margin: 0; /* 重置通用按鈕的 margin */
-  margin-right: 10px; /* 保留你設定的右邊距 */
-}
-
-#history-button:hover{
-  background-color: #244678;
-}
-
-
+  
+/* Login Page Styling */
 .login-container {
-  background: white;
-  padding: 30px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  width: 500px;
-  margin: auto;
-  margin-top: 10%;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-medium);
+  padding: 40px;
+  border-radius: var(--border-radius-medium);
+  width: 100%;
+  max-width: 450px; /* 限制最大寬度 */
+  margin: 10vh auto; /* 上下邊距，水平居中 */
+  box-sizing: border-box;
+  transition: background-color var(--transition-speed);
+  z-index: 2;
 }
 
 .login-container h2 {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 30px;
+  font-size: 1.8em;
+  color: var(--text-primary);
 }
 
-.login-container input {
-  width: 95%;
-  padding: 10px;
-  margin-bottom: 16px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-}
-
-.login-container button {
+.login-container input[type="email"],
+.login-container input[type="password"] {
   width: 100%;
-  padding: 10px;
-  background-color: #539ac9;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
+  padding: 12px 15px;
+  margin-bottom: 20px;
+  background-color: var(--bg-primary); /* 登入頁輸入框背景 */
+  color: var(--text-primary);
+  border-radius: var(--border-radius-small);
+  box-sizing: border-box;
+  font-size: 1rem;
+  border: 1px solid var(--border-primary);
+  transition: border-color var(--transition-speed), box-shadow var(--transition-speed), background-color var(--transition-speed), color var(--transition-speed);
 }
 
-.login-container button:hover {
-  background-color: #1e5478;
+.login-container input[type="email"]:focus,
+.login-container input[type="password"]:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-hover);
+  outline: none;
+}
+
+[data-theme="dark"] .login-container input[type="email"]:focus,
+[data-theme="dark"] .login-container input[type="password"]:focus {
+  box-shadow: 0 0 0 3px rgba(83, 168, 219, 0.4);
+}
+
+.login-container button[type="submit"] { /* 登入頁的提交按鈕 */
+  width: 100%;
+  padding: 12px;
+  font-size: 1.1em; /* 稍大字體 */
 }
 
 .login-container .error {
-  color: red;
+  color: var(--color-danger);
+  background-color: rgba(231, 76, 60, 0.1);
+  border: 1px solid var(--color-danger);
   text-align: center;
-  margin-top: 10px;
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: var(--border-radius-small);
 }
 
-#login-button-main{
-  padding: 8px 16px;
-  font-size: 14px;
+.login-container p {
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 0.9em;
+  margin-top: 20px;
+}
+
+/* --- 新增：模式切換按鈕樣式 --- */
+#theme-toggle-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  width: 50px; /* 固定大小 */
+  height: 50px;
+  border-radius: 50%; /* 圓形按鈕 */
+  font-size: 24px; /* 圖示大小 */
   cursor: pointer;
-  background-color: #5392c9;
-  display: inline-block; /* 確保 */
-  margin: 0; /* 重置通用按鈕的 margin */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: var(--shadow-medium);
+  transition: background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed), transform 0.2s;
+  z-index: 1001; /* 確保在 auth-status-area 之上 (如果需要) */
 }
 
-#auth-status-area {
-  display: flex; /* 啟用 Flexbox 佈局 */
-  align-items: center; /* 垂直居中對齊內部的 item（可選）*/
-  gap: 20px; /* 元素之間的間距（可選，根據你的喜好調整）*/
-  margin-bottom: 16px; /* 與下方內容的間距（可選）*/
-  position:absolute;
-  right: 30px;
+#theme-toggle-button:hover {
+  transform: scale(1.1);
+  background-color: var(--bg-accent);
 }
 
-/* 可選：如果想讓按鈕的 display 屬性更明確，或者調整間距 */
-#auth-status-area p {
-  margin: 0; /* 移除 p 標籤預設的 margin，避免影響佈局 */
-  
+/* 初始隱藏月亮圖示 */
+#theme-toggle-button .moon-icon {
+  display: none;
 }
 
-#auth-status-area button {
-  /* 
-    你的按鈕已經有 padding, font-size 等樣式，這裡可能不需要額外修改。
-    重要的是它們的父容器 #auth-status-area 使用了 display: flex。
-    通用按鈕樣式已經是 display: block; margin: 0 auto;
-    這裡可能需要覆蓋掉 display: block 和 margin: 0 auto; 以便它們能在 flex 容器中並排
-  */
-  display: inline-block; /* 或者移除 display: block; 讓它恢復預設的內聯特性 */
-  margin: 0; /* 移除通用按鈕樣式中的 margin: 0 auto; */
+/* 當是深色模式時，隱藏太陽，顯示月亮 */
+[data-theme="dark"] #theme-toggle-button .sun-icon {
+  display: none;
+}
+[data-theme="dark"] #theme-toggle-button .moon-icon {
+  display: inline;
+}
+
+#scroll-buttons-container {
+  position: fixed; /* 固定在視窗位置 */
+  bottom: 90px;    /* 距離底部 20px */
+  right: 20px;     /* 距離右側 20px */
+  z-index: 999;    /* 確保在其他內容之上 */
+  display: flex;   /* 讓按鈕並排或堆疊 */
+  flex-direction: column; /* 垂直堆疊按鈕 */
+  gap: 10px;       /* 按鈕之間的間距 */
+}
+
+#scroll-to-top-btn,
+#scroll-to-bottom-btn {
+  background-color: var(--primary-color, #c7cfd4);
+  color: rgb(83, 84, 102);
+  border: none;
+  border-radius: 20%; /* 圓形按鈕 */
+  width: 45px; 
+  height: 45px;      /* 按鈕高度 */
+  font-size: 26px;   /* 圖示/文字大小 */
+  cursor: pointer;
+  box-shadow: var(--box-shadow-medium, 0 4px 12px rgba(0,0,0,0.1));
+  transition: background-color 0.3s, transform 0.2s;
+  display: flex;     /* 用於居中內容 */
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;      /* 初始透明度 */
+}
+
+#scroll-to-top-btn:hover,
+#scroll-to-bottom-btn:hover {
+  background-color: var(--primary-hover-color, #8eabbe);
+  opacity: 1;
+  transform: scale(1.05); /* 懸停時輕微放大 */
+}
+
+/* 初始隱藏“滾動到頂部”按鈕，當向下滾動時 JS 會將其顯示 */
+#scroll-to-top-btn {
+  display: none;
+}
+
+.login-page-background { /* 給 body 添加一個特定的 class 以應用背景 */
+  background-image: url("./images/loginB.png");
+  background-color: rgba(0, 0, 0, 0.5);
+  background-size: cover; /* 背景圖片覆蓋整個區域 */
+  background-position: center center; /* 背景圖片居中 */
+  background-repeat: no-repeat; /* 背景圖片不重複 */
+  background-attachment: fixed; /* 背景圖片固定，不隨滾動條滾動 */
+  display: flex; /* 用於垂直居中 login-container */
+  justify-content: center; /* 水平居中 */
+  align-items: center; /* 垂直居中 */
+  min-height: 100vh; /* 確保 body 至少佔滿整個視口高度 */
+  min-width: 100%;
+  margin: 0; /* 移除 body 預設 margin */
+  position: relative; /* 為了偽元素的定位 */
+  z-index: 0;
+}
+
+.login-page-background::before { /* 使用偽元素來實現透明度遮罩 */
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7); /* 白色背景，70% 不透明度 (即背景圖片30%透明度) */
+  min-height: 100vh; /* 確保 body 至少佔滿整個視口高度 */
+  min-width: 100%;
+  z-index: 1; /* 確保偽元素在內容下方，背景圖片之上 */
 }
