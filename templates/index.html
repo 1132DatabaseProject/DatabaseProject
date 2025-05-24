@@ -7,13 +7,10 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
-  <!-- Supabase JS Client - 保持原樣，因為 checkAuth 和可能的其他前端交互仍需 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.4/dist/umd/supabase.min.js"></script>
-  
 </head>
 
 <body>
-  <!-- ***** 修改開始：使用 Flask 模板變數來決定初始顯示 ***** -->
   <div id="auth-status-area">
     {% if user_logged_in %}
     <p>歡迎，{{ user_email }}！</p>
@@ -25,7 +22,6 @@
     {% endif %}
   </div>
 
-  <!-- ***** 修改結束 ***** -->
   <div id="sidebar">
     <h2>歷史紀錄</h2>
     <ul id="history-list">
@@ -35,7 +31,7 @@
       <li class="history-item" data-id="{{ record.id }}">
         <p><strong>分析時間：</strong>{{ record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else '未知' }}
         </p>
-        <p class="history-item-summary"> <!-- Show a snippet of original text -->
+        <p class="history-item-summary">
                 {{ record.original_text[:60] }}{% if record.original_text|length > 60 %}...{% endif %}
               </p>
       </li>
@@ -54,7 +50,7 @@
       <h1>英文寫作分析器</h1>
 
       <form id="analyze-form" enctype="multipart/form-data">
-        <textarea name="text_content" id="text_content" placeholder="請輸入或貼上英文文章內容..." rows="15"></textarea>
+        <textarea name="text_content" id="text_content" placeholder="請輸入或貼上英文文章內容...或是你也可以簡單描述一些內容或主題，用於生成出一篇優秀範文。" rows="15"></textarea>
         <div class="upload-section">
           <label for="file">或上傳TXT檔案：</label>
           <input type="file" id="file" name="file" accept=".txt">
@@ -79,7 +75,7 @@
         <h2>分析結果編輯</h2>
         <div id="editor-container" class="hidden"></div>
         <div id="download-section" class="hidden">
-          <button id="download-pdf-button" class="download-btn">下載編輯後PDF</button> <!-- 修改按鈕文字 -->
+          <button id="download-pdf-button" class="download-btn">下載編輯後PDF</button>
         </div>
       </div>
 
@@ -87,7 +83,6 @@
         <div id="sample-content" class="sample-content"></div>
       </div>
       
-      <!-- ⭐⭐ 新增：滾動按鈕 ⭐⭐ -->
       <div id="scroll-buttons-container">
         <button id="scroll-to-top-btn" title="滾動到頂部">↑</button> <!-- 或使用圖示 -->
         <button id="scroll-to-bottom-btn" title="滾動到底部">↓</button> <!-- 或使用圖示 -->
@@ -140,7 +135,6 @@
     const editableTab = document.getElementById('tab2');
     const analysisResultDiv = document.getElementById('result');
     const editorContainerDiv = document.getElementById('editor-container'); // quill is linked to this
-    //const downloadOriginalPdfButtonContainer = document.createElement('div'); // For dynamically adding the PDF button
     const downloadOriginalPdfButtonContainer = document.getElementById('original-pdf-download-container'); 
     //resultEl.parentNode.insertBefore(downloadOriginalPdfButtonContainer, resultEl.nextSibling);
 
@@ -270,7 +264,6 @@
             // 檢查是否已經有刪除按鈕，避免重複添加
             if (!listItem.querySelector('.delete-history-btn')) {
                 const deleteBtn = document.createElement('button');
-                //eleteBtn.innerHTML = '🗑️'; // 垃圾桶圖示 (Unicode)
                 deleteBtn.className = 'delete-history-btn';
                 deleteBtn.title = '刪除此紀錄';
                 deleteBtn.dataset.itemId = listItem.dataset.id; // 將 item ID 存儲在按鈕上
@@ -322,8 +315,6 @@
                         const response = await fetch(`/delete_history_item/${itemIdToDelete}`, {
                             method: 'DELETE',
                             headers: {
-                                // 如果你的後端需要 CSRF token 或其他認證頭，在這裡添加
-                                // 'X-CSRF-TOKEN': 'your_csrf_token_here',
                                 'Accept': 'application/json',
                             }
                         });

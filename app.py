@@ -646,12 +646,7 @@ def generate_pdf():
         if 'pdf_path' in locals() and os.path.exists(pdf_path):
             os.remove(pdf_path)
         return jsonify({"error": f"編輯後 PDF 生成失敗: {e}"}), 500
-    # finally: # 另一種確保刪除的方式
-    #     if 'pdf_path' in locals() and os.path.exists(pdf_path):
-    #         try:
-    #             os.remove(pdf_path)
-    #         except Exception as e_remove:
-    #             print(f"Error removing temp pdf {pdf_path}: {e_remove}")
+
 
 @app.route("/get_history_item/<string:item_id>", methods=["GET"])
 def get_history_item(item_id):
@@ -699,11 +694,6 @@ def get_history_item(item_id):
             return jsonify({"error": "Item not found or access denied"}), 404
             
     except Exception as e:
-        # supabase-py can raise specific exceptions, e.g., from gotrue.errors or postgrest.exceptions
-        # Example: from postgrest.exceptions import APIError
-        # if isinstance(e, APIError) and e.code == "PGRST116": # "טים exact one row was returned" (when using .single())
-        #     app.logger.warning(f"History item {item_id} not found for user {user_email} (single() failed): {e}")
-        #     return jsonify({"error": "Item not found"}), 404
         
         app.logger.error(f"Error fetching history item {item_id} for user {user_email}: {e}", exc_info=True) # exc_info=True logs traceback
         
