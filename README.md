@@ -12,6 +12,29 @@
 
 為單純想精進英文寫作，或是想了解他人文章的人，提供完整報告
 
+## 安裝步驟
+
+### 1. 下載專案
+```bash
+git clone <你的-repo-url>
+cd <你的專案資料夾>
+```
+
+### 2. 安裝所需 Python 套件
+建議使用虛擬環境（venv、conda 等）：
+```bash
+pip install -r requirements.txt
+```
+
+
+### 必要檔案與設定
+**Google API 憑證**  
+   - 建立 `.env` 檔案，內容如下（請填入你的資訊）：
+     ```bash
+     GEMINI_API_KEY = 你的 Gemini API Key
+     ```
+
+
 ## APP使用流程
 1. 使用者需提供一篇文本，
 
@@ -32,6 +55,8 @@ EX. 在文字輸入框中輸入文字、匯入TXT檔，
 使用者可將原始分析結果下載儲存成PDF檔案，
 
 或是使用應用程式內建的Quill編輯器編輯分析結果的內容
+
+## AI Agent 流程圖
 
 ## 專題優勢
 1.輔助學習的工具
