@@ -1,8 +1,9 @@
 # 英文寫作分析器
 
 ## 影片介紹
-1. 第一次審查說明:https://youtu.be/UgYSmUlx4qM
-2. 第二次審查說明:https://youtu.be/Q-ppPWUA73w
+1. 第一次審查說明: https://youtu.be/UgYSmUlx4qM
+2. 第二次審查說明: https://youtu.be/Q-ppPWUA73w
+3. 期末專題影片: https://www.youtube.com/watch?v=HiC-e4MAGJE
 
 ## 簡介
 這個應用程式能針對每一篇文章，完整分析出敘事方式、優缺點、佳句統整、用詞錯誤等內容，更快速、有效的得到完整回饋。
